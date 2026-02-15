@@ -27,6 +27,35 @@ for skill_dir in ~/.claude/plugins/cache/*/skills/*/; do
 done
 ```
 
+#### Checkpoint Discovery (Convention-with-Override)
+
+For each skill, checkpoints are discovered using this logic:
+
+```
+1. Parse SKILL.md front matter
+2. If `checkpoints:` key exists -> use that explicit path (override)
+3. Else if checkpoints.yaml exists in skill root -> use it (convention)
+4. Else -> no checkpoints, skip this skill
+```
+
+##### Skill Structure with Checkpoints
+
+```
+my-skill/
+├── SKILL.md              # Skill content, optional checkpoints: key
+├── checkpoints.yaml      # Auto-discovered by convention
+└── references/
+    └── llm-rubric.md     # LLM review prompts (optional)
+```
+
+##### Why Convention-with-Override?
+
+| Pattern | Pros | Cons |
+|---------|------|------|
+| **Convention** | Zero config, predictable location | Less flexible |
+| **Override** | Full control, non-standard paths | Requires config |
+| **Both** | Best of both worlds | Slightly more complex discovery |
+
 ### Step 2: Run Scripted Checks (Tier 1)
 
 For each mechanical checkpoint:
@@ -159,35 +188,6 @@ The assessment is NOT complete until:
 
 If ANY validation fails, retry that component.
 
-## Checkpoint Discovery (Convention-with-Override)
-
-For each skill, checkpoints are discovered using this logic:
-
-```
-1. Parse SKILL.md front matter
-2. If `checkpoints:` key exists -> use that explicit path (override)
-3. Else if checkpoints.yaml exists in skill root -> use it (convention)
-4. Else -> no checkpoints, skip this skill
-```
-
-### Skill Structure with Checkpoints
-
-```
-my-skill/
-├── SKILL.md              # Skill content, optional checkpoints: key
-├── checkpoints.yaml      # Auto-discovered by convention
-└── references/
-    └── llm-rubric.md     # LLM review prompts (optional)
-```
-
-### Why Convention-with-Override?
-
-| Pattern | Pros | Cons |
-|---------|------|------|
-| **Convention** | Zero config, predictable location | Less flexible |
-| **Override** | Full control, non-standard paths | Requires config |
-| **Both** | Best of both worlds | Slightly more complex discovery |
-
 ## Implementation Notes
 
 ### Why Domain Batching?
@@ -232,4 +232,4 @@ Prompt may need adjustment. Check agent output for parsing errors.
 Verify target path is correct. Check if file exists.
 
 ### "No checkpoints found for skill X"
-Skill doesn't have checkpoints.yaml and no override in front matter. Add checkpoints.yaml following the schema.
+Skill doesn't have checkpoints.yaml and no override in front matter. Add checkpoints.yaml following the schema in [`references/checkpoints-schema.md`](checkpoints-schema.md).

@@ -72,7 +72,7 @@ For full schema, see `references/checkpoints-schema.md`.
 
 - **Checkpoints schema**: `references/checkpoints-schema.md` -- full YAML schema for checkpoint definitions
 - **Checkpoint workflow**: `references/checkpoint-workflow.md` -- discovery, agent prompts, validation rules, YAML format, troubleshooting
-- **Migration guide**: `references/migration-guide.md` -- migrating from previous assessment approaches
+- **Migration guide**: `references/migration-guide.md` -- guide for adding checkpoints to skills that don't have them yet
 
 ---
 
