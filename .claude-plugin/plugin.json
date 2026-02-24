@@ -6,9 +6,12 @@
   "license": "MIT",
   "author": {
     "name": "Netresearch DTT GmbH",
-    "email": "info@netresearch.de"
+    "url": "https://github.com/netresearch/extension-assessment-skill"
   },
   "skills": [
     "./skills/extension-assessment"
-  ]
+  ],
+  "support": {
+    "issues": "https://github.com/netresearch/extension-assessment-skill/issues"
+  }
 }
