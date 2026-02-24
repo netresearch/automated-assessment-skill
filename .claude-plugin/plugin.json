@@ -10,8 +10,5 @@
   },
   "skills": [
     "./skills/extension-assessment"
-  ],
-  "support": {
-    "issues": "https://github.com/netresearch/extension-assessment-skill/issues"
-  }
+  ]
 }
