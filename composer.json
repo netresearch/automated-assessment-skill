@@ -1,6 +1,9 @@
 {
-  "name": "netresearch/agent-extension-assessment",
+  "name": "netresearch/extension-assessment-skill",
   "description": "Netresearch AI skill for systematic TYPO3 extension assessment with checkpoint-based verification",
+  "replace": {
+    "netresearch/agent-extension-assessment": "self.version"
+  },
   "type": "ai-agent-skill",
   "license": "MIT",
   "authors": [
