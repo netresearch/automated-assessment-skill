@@ -1,7 +1,6 @@
 ---
 name: extension-assessment
-description: "Use when assessing TYPO3 extensions for compliance against all Netresearch skills, or running /assess-extension for systematic verification with scripted checks and domain-batched LLM review."
-user_invocable: true
+description: "Use when assessing TYPO3 extensions for compliance against Netresearch skill standards, running quality audits, or verifying extension readiness before release."
 ---
 
 # Extension Assessment Skill
