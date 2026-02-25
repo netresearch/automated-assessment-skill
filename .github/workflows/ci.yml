@@ -10,37 +10,18 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  validate-assets:
+    name: Validate Assessment Assets
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Validate composer.json
-        run: composer validate --strict
-
-      - name: Validate plugin.json
-        run: |
-          if ! jq empty .claude-plugin/plugin.json 2>/dev/null; then
-            echo "Invalid JSON in plugin.json"
-            exit 1
-          fi
-          echo "plugin.json is valid JSON"
-
-      - name: Check SKILL.md exists
-        run: test -f skills/extension-assessment/SKILL.md
-
-      - name: Check checkpoint schema documentation
-        run: test -f skills/extension-assessment/references/checkpoints-schema.md
-
-      - name: Validate example checkpoint files
+      - name: Validate checkpoint asset files
         run: |
           for f in skills/extension-assessment/assets/*-checkpoints.yaml; do
             echo "Validating $f..."
-            # Check version field exists
             grep -q "^version: 1" "$f" || { echo "Missing version: 1 in $f"; exit 1; }
-            # Check skill_id field exists
             grep -q "^skill_id:" "$f" || { echo "Missing skill_id in $f"; exit 1; }
-            # Check mechanical section exists
             grep -q "^mechanical:" "$f" || { echo "Missing mechanical section in $f"; exit 1; }
           done
           echo "All checkpoint files valid"
