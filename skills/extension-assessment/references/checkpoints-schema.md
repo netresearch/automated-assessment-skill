@@ -28,6 +28,14 @@ Current schema version: `1`
 version: 1
 skill_id: github-project  # Must match skill name
 
+# Preconditions - evaluated BEFORE any checks; if any fail, skill is skipped
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+  - type: json_path
+    target: composer.json
+    pattern: '.type == "typo3-cms-extension"'
+
 # Mechanical checks - run by scripted runner (no LLM needed)
 mechanical:
   - id: GH-01                          # Unique ID: SKILL_PREFIX-NUMBER
@@ -68,6 +76,57 @@ llm_reviews:
       - License
     severity: info
     desc: "README should have standard structure"
+```
+
+## Preconditions
+
+Preconditions are evaluated **before** any mechanical or LLM checks run. They act as guards that determine whether a skill is applicable to the target repository.
+
+### Behavior
+
+- All preconditions must pass (AND logic)
+- If **any** precondition fails, the entire skill is **skipped** (this is not an error)
+- Preconditions are not reported as findings -- they silently gate the skill
+
+### Fields
+
+Preconditions reuse the same types as mechanical checks but require fewer fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | Yes | Check type: `file_exists`, `file_not_exists`, `contains`, `regex`, `json_path`, `command` |
+| `target` | Depends | File/path to check (required for file-based types) |
+| `pattern` | Depends | Pattern or expression (required for `contains`, `regex`, `json_path`, `command`) |
+
+No `id`, `severity`, or `desc` fields are needed.
+
+### Examples
+
+Skip the skill if the repo is not a TYPO3 extension:
+
+```yaml
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+  - type: json_path
+    target: composer.json
+    pattern: '.type == "typo3-cms-extension"'
+```
+
+Skip the skill if no Go source files exist:
+
+```yaml
+preconditions:
+  - type: command
+    pattern: "ls *.go 2>/dev/null"
+```
+
+Skip the skill if the repo has no CI configuration:
+
+```yaml
+preconditions:
+  - type: file_exists
+    target: .github/workflows
 ```
 
 ## Checkpoint ID Convention
@@ -226,6 +285,10 @@ def find_checkpoints(skill_path):
 ```yaml
 version: 1
 skill_id: github-project
+
+preconditions:
+  - type: file_exists
+    target: .github
 
 mechanical:
   - id: GH-01
