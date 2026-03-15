@@ -56,9 +56,23 @@ my-skill/
 | **Override** | Full control, non-standard paths | Requires config |
 | **Both** | Best of both worlds | Slightly more complex discovery |
 
-### Step 2: Run Scripted Checks (Tier 1)
+### Step 2: Evaluate Preconditions
 
-For each mechanical checkpoint:
+For each discovered skill, evaluate its `preconditions:` block. All preconditions must pass (AND logic). If any precondition fails, the entire skill is silently skipped -- this is not an error.
+
+```bash
+# For each discovered checkpoint file:
+# 1. Parse the preconditions block
+# 2. Run each precondition (same types as mechanical checks)
+# 3. If ANY fails -> skip this skill entirely
+# 4. If ALL pass -> proceed to mechanical checks
+```
+
+This prevents irrelevant skills from producing false negatives (e.g., TYPO3 checks on a Go project).
+
+### Step 3: Run Scripted Checks (Tier 1)
+
+For each mechanical checkpoint (in skills that passed preconditions):
 
 ```bash
 scripts/run-checkpoints.sh <checkpoint-file.yaml> <project-root>
@@ -66,7 +80,7 @@ scripts/run-checkpoints.sh <checkpoint-file.yaml> <project-root>
 
 This runs all `file_exists`, `contains`, `regex`, etc. checks without any LLM involvement.
 
-### Step 3: Run Domain Agents (Tier 2)
+### Step 4: Run Domain Agents (Tier 2)
 
 Group `llm_review` checkpoints by domain, spawn one agent per domain:
 
@@ -77,13 +91,13 @@ Prompt: "You are auditing repo health. Verify these checkpoints..."
 Output: JSON with pass/fail per checkpoint
 ```
 
-### Step 4: Aggregate Results
+### Step 5: Aggregate Results
 
 Collect all results into compliance report:
 
 ```json
 {
-  "extension": "netresearch/contexts",
+  "project": "netresearch/contexts",
   "timestamp": "2026-01-30T19:00:00Z",
   "overall_status": "FAIL",
   "summary": {
@@ -147,10 +161,10 @@ For full schema documentation, see `references/checkpoints-schema.md`.
 Each domain agent receives this prompt:
 
 ```markdown
-You are an automated compliance auditor for TYPO3 extensions.
+You are an automated compliance auditor for projects.
 
 ## Your Task
-Verify the extension against ONLY the checkpoints listed below.
+Verify the project against ONLY the checkpoints listed below.
 You must NOT fix issues - only report compliance status.
 
 ## Output Format
@@ -172,7 +186,7 @@ Return ONLY a JSON object with this exact structure:
 ## Rules
 - Every checkpoint MUST have a status (no nulls)
 - Evidence MUST be specific (line numbers, quotes)
-- "skip" only if checkpoint doesn't apply to this extension type
+- "skip" only if checkpoint doesn't apply to this project type
 - Be strict - when in doubt, mark as "fail"
 ```
 
@@ -216,7 +230,7 @@ TC-01  = typo3-conformance checkpoint 1
 ## Migration Path
 
 1. **Phase 1**: Add checkpoints to pilot skills (github-project, enterprise-readiness, agents)
-2. **Phase 2**: Test assessment on contexts extension
+2. **Phase 2**: Test assessment on contexts project
 3. **Phase 3**: Add checkpoints to remaining skills
 4. **Phase 4**: Integrate with CI (automated assessment on PR)
 

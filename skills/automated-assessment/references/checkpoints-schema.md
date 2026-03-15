@@ -1,6 +1,6 @@
 # Checkpoints YAML Schema
 
-This document defines the schema for `checkpoints.yaml` files used by the extension-assessment skill.
+This document defines the schema for `checkpoints.yaml` files used by the automated-assessment skill.
 
 ## File Location
 
@@ -353,7 +353,7 @@ llm_reviews:
 Run the validator to check your checkpoints.yaml:
 
 ```bash
-~/.claude/skills/extension-assessment/scripts/validate-checkpoints.sh checkpoints.yaml
+~/.claude/skills/automated-assessment/scripts/validate-checkpoints.sh checkpoints.yaml
 ```
 
 The validator checks:

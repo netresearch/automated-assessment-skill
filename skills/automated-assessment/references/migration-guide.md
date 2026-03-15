@@ -4,7 +4,7 @@ This guide explains how to add checkpoints to existing skills for automated asse
 
 ## Overview
 
-The extension-assessment skill uses **checkpoints** to systematically verify TYPO3 extensions against all skills. Checkpoints are either:
+The automated-assessment skill uses **checkpoints** to systematically verify projects against all skills. Checkpoints are either:
 
 1. **Mechanical** - Script-runnable checks (file exists, contains pattern, etc.)
 2. **LLM Reviews** - Subjective checks requiring agent judgment
@@ -34,7 +34,40 @@ llm_reviews:
     desc: "README should follow standards"
 ```
 
-### Step 2: Choose Checkpoint IDs
+### Step 2: Define Preconditions
+
+If your skill only applies to certain project types, add a `preconditions:` block. All preconditions must pass (AND logic) for the skill's checks to run. If any precondition fails, the entire skill is silently skipped.
+
+```yaml
+version: 1
+skill_id: your-skill-name
+
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php          # Only TYPO3 extensions
+  - type: json_path
+    target: composer.json
+    pattern: '.type == "typo3-cms-extension"'
+
+mechanical:
+  # ...checks only run if preconditions pass
+```
+
+Preconditions reuse the same check types as mechanical checks (`file_exists`, `contains`, `regex`, `json_path`, `command`, etc.) but do not require `id`, `severity`, or `desc` fields.
+
+Common patterns:
+
+| Project Type | Precondition |
+|---|---|
+| TYPO3 extension | `file_exists: ext_emconf.php` |
+| Go project | `file_exists: go.mod` |
+| npm package | `file_exists: package.json` |
+| GitHub repo | `file_exists: .github` |
+| Docker project | `file_exists: Dockerfile` |
+
+If your skill applies universally (e.g., github-project), you can omit preconditions entirely.
+
+### Step 3: Choose Checkpoint IDs
 
 Use a consistent prefix based on your skill name:
 
@@ -49,7 +82,7 @@ Use a consistent prefix based on your skill name:
 | security-audit | SA | SA-01, SA-02 |
 | typo3-docs | TD | TD-01, TD-02 |
 
-### Step 3: Convert Requirements to Checkpoints
+### Step 4: Convert Requirements to Checkpoints
 
 For each requirement in your skill, determine the checkpoint type:
 
@@ -63,7 +96,7 @@ For each requirement in your skill, determine the checkpoint type:
 | "Command succeeds" | `command` | `pattern: "composer validate"` |
 | "Subjective judgment" | `llm_review` | `domain: code-quality` |
 
-### Step 4: Assign Severity Levels
+### Step 5: Assign Severity Levels
 
 | Severity | Use When |
 |----------|----------|
@@ -71,7 +104,7 @@ For each requirement in your skill, determine the checkpoint type:
 | `warning` | Should fix, strong recommendation |
 | `info` | Nice to have, optional improvement |
 
-### Step 5: Create LLM Rubric (Optional)
+### Step 6: Create LLM Rubric (Optional)
 
 For complex LLM reviews, create a rubric file in `references/`:
 
@@ -108,17 +141,17 @@ llm_reviews:
     severity: warning
 ```
 
-### Step 6: Test Your Checkpoints
+### Step 7: Test Your Checkpoints
 
 Run the checkpoint runner on a test project:
 
 ```bash
-~/.claude/skills/extension-assessment/scripts/run-checkpoints.sh \
+~/.claude/skills/automated-assessment/scripts/run-checkpoints.sh \
   /path/to/your/skill/checkpoints.yaml \
   /path/to/test/project
 ```
 
-### Step 7: Verify Checkpoint Coverage
+### Step 8: Verify Checkpoint Coverage
 
 Ensure all key requirements from your skill have corresponding checkpoints:
 
@@ -199,7 +232,7 @@ Add checkpoints to 3 skills:
 - agents
 
 ### Phase 2: Test Assessment
-Run `/assess-extension` on contexts extension to validate the system.
+Run `/assess` on the contexts project to validate the system.
 
 ### Phase 3: Remaining Skills
 Add checkpoints to all other skills:
