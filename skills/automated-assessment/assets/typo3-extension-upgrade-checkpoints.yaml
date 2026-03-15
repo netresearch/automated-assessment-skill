@@ -4,6 +4,10 @@
 version: 1
 skill_id: typo3-extension-upgrade
 
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+
 mechanical:
   # === RECTOR CONFIGURATION ===
   - id: TU-01

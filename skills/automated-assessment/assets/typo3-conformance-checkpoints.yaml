@@ -4,6 +4,10 @@
 version: 1
 skill_id: typo3-conformance
 
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+
 mechanical:
   # === ext_emconf.php CHECKS ===
   - id: TC-01

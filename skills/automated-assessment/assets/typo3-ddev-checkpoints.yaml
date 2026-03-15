@@ -4,6 +4,12 @@
 version: 1
 skill_id: typo3-ddev
 
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+  - type: file_exists
+    target: .ddev/config.yaml
+
 mechanical:
   # === DDEV CONFIGURATION EXISTENCE ===
   - id: DD-01

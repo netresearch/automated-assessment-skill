@@ -7,6 +7,13 @@
 version: 1
 skill_id: my-skill-name
 
+# preconditions:
+#   - type: file_exists
+#     target: some-required-file
+#   - type: json_path
+#     target: composer.json
+#     pattern: '.type == "some-type"'
+
 mechanical:
   # File existence checks
   - id: MS-01

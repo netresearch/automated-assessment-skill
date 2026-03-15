@@ -4,6 +4,10 @@
 version: 1
 skill_id: typo3-testing
 
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+
 mechanical:
   # === PHPUNIT CONFIGURATION ===
   - id: TT-01

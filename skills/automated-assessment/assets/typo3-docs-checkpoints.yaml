@@ -4,6 +4,10 @@
 version: 1
 skill_id: typo3-docs
 
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+
 mechanical:
   # === DIRECTORY STRUCTURE ===
   - id: TD-01

@@ -4,6 +4,10 @@
 version: 1
 skill_id: docker-development
 
+preconditions:
+  - type: file_exists
+    target: Dockerfile
+
 mechanical:
   # === DOCKERFILE/COMPOSE EXISTENCE ===
   - id: DC-01

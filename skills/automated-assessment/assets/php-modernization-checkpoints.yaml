@@ -4,6 +4,10 @@
 version: 1
 skill_id: php-modernization
 
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+
 mechanical:
   # === PHPSTAN CONFIGURATION ===
   - id: PM-01
