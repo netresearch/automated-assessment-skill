@@ -1,6 +1,6 @@
 {
     "name": "netresearch/extension-assessment-skill",
-    "description": "Netresearch AI skill for systematic TYPO3 extension assessment with checkpoint-based verification",
+    "description": "Systematic project assessment against Netresearch skills with scripted verification + LLM review",
     "replace": {
         "netresearch/agent-extension-assessment": "self.version"
     },
@@ -17,7 +17,7 @@
         "netresearch/composer-agent-skill-plugin": "^1.0"
     },
     "extra": {
-        "ai-agent-skill": "skills/extension-assessment/SKILL.md"
+        "ai-agent-skill": "skills/automated-assessment/SKILL.md"
     },
     "support": {
         "issues": "https://github.com/netresearch/extension-assessment-skill/issues",

@@ -1,13 +1,13 @@
-# Extension Assessment Skill
+# Automated Assessment Skill
 
 [![CI](https://github.com/netresearch/extension-assessment-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/netresearch/extension-assessment-skill/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20CC--BY--SA--4.0-blue.svg)](#license)
 
-Systematic TYPO3 extension assessment against all Netresearch skills with checkpoint-based verification - by Netresearch.
+Systematic project assessment against all Netresearch skills with checkpoint-based verification - by Netresearch.
 
 ## Why This Skill Exists
 
-When asked to "ensure extension aligns with all skills", LLMs typically:
+When asked to "ensure project aligns with all skills", LLMs typically:
 - Cherry-pick obvious issues (satisficing)
 - Miss 50-80% of requirements
 - Report "done" without exhaustive verification
@@ -36,15 +36,19 @@ composer require netresearch/agent-extension-assessment
 ### Run Assessment
 
 ```
-/assess-extension
+/assess                              # Assess against all matching skills
+/assess skill-repo typo3-testing     # Assess against specific skills only
+/assess --force                      # Run all skills, ignore preconditions
+/assess --mechanical-only            # Skip LLM reviews, only scripted checks
 ```
 
 This will:
-1. Detect extension root (ext_emconf.php or composer.json with typo3-cms-extension)
+1. Detect project root
 2. Discover all skills with checkpoints
-3. Run scripted mechanical checks
-4. Spawn domain-batched LLM agents for subjective reviews
-5. Generate compliance report
+3. Evaluate preconditions — skip skills that don't match project type
+4. Run scripted mechanical checks
+5. Spawn domain-batched LLM agents for subjective reviews
+6. Generate compliance report
 
 ### Run Checkpoints Manually
 
@@ -75,7 +79,7 @@ llm_reviews:
     desc: "README should have standard sections"
 ```
 
-See `skills/extension-assessment/references/checkpoints-schema.md` for full schema documentation.
+See `skills/automated-assessment/references/checkpoints-schema.md` for full schema documentation.
 
 ## Checkpoint Types
 
@@ -97,12 +101,16 @@ See `skills/extension-assessment/references/checkpoints-schema.md` for full sche
 | `security` | SLSA, OpenSSF, SBOM, vulnerabilities |
 | `code-quality` | PHPStan, tests, PHP patterns |
 | `documentation` | RST, docs.typo3.org standards |
+| `git-workflow` | Branching, commits, tags, conventional commits |
+| `docker` | Dockerfile, compose, container patterns |
+| `ddev` | DDEV configuration, services, commands |
+| `upgrade` | TYPO3 version upgrades, deprecations |
 
 ## Example Assessment Output
 
 ```json
 {
-  "extension": "netresearch/contexts",
+  "project": "netresearch/contexts",
   "overall_status": "FAIL",
   "summary": {
     "total": 45,

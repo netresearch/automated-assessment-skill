@@ -1,31 +1,44 @@
 ---
-name: extension-assessment
-description: "Use when assessing TYPO3 extensions for compliance against Netresearch skill standards, running quality audits, or verifying extension readiness before release."
+name: automated-assessment
+description: "Use when assessing projects for compliance against Netresearch skill standards, running quality audits, or verifying readiness before release."
 ---
 
-# Extension Assessment Skill
+# Automated Assessment Skill
 
-Systematic compliance assessment for TYPO3 extensions against all Netresearch skills.
+Systematic compliance assessment for projects against all Netresearch skills.
 
 ## Why This Skill Exists
 
-When asked to "ensure extension aligns with all skills", LLMs typically cherry-pick obvious issues and miss 50-80% of requirements. This skill enforces systematic verification through scripted pre-flight checks (mechanical, 100% accurate), domain-batched LLM agents (subjective judgment), and structured JSON output (verifiable completeness).
+LLMs typically cherry-pick obvious issues and miss 50-80% of requirements. This skill enforces systematic verification through scripted pre-flight checks, domain-batched LLM agents, and structured JSON output.
 
 ## Running the Assessment
 
 ```
-/assess-extension
+/assess                              # Assess against all matching skills
+/assess skill-repo typo3-testing     # Assess against specific skills only
+/assess --force                      # Run all skills, ignore preconditions
+/assess --mechanical-only            # Skip LLM reviews, only scripted checks
 ```
 
-Steps performed:
+### Options
 
-1. **Detect extension root** (ext_emconf.php or composer.json with typo3-cms-extension)
+| Flag | Effect |
+|------|--------|
+| `<skill-names>` | Only run checkpoints for named skills |
+| `--force` | Skip precondition checks, run all skills |
+| `--mechanical-only` | Skip LLM reviews, only run scripted checks |
+| `--json` | Output raw JSON instead of formatted report |
+
+### Steps Performed
+
+1. **Detect project root**
 2. **Discover all skills** from plugin cache and local skills
-3. **Find checkpoints** using convention-with-override pattern
-4. **Run scripted checks** (file_exists, contains, regex, etc.)
-5. **Group LLM checkpoints** by domain, spawn 3-4 parallel agents
-6. **Collect JSON results** and validate completeness
-7. **Generate compliance report**
+3. **Evaluate preconditions** — skip skills whose preconditions don't match project type
+4. **Find checkpoints** using convention-with-override pattern
+5. **Run scripted checks** (file_exists, contains, regex, etc.)
+6. **Group LLM checkpoints** by domain, spawn 3-4 parallel agents
+7. **Collect JSON results** and validate completeness
+8. **Generate compliance report**
 
 ## Checkpoint Types
 
@@ -58,6 +71,10 @@ For full schema, see `references/checkpoints-schema.md`.
 | `security` | enterprise-readiness, security-audit | SLSA, OpenSSF, SBOM, vulnerabilities |
 | `code-quality` | typo3-conformance, php-modernization, typo3-testing | PHPStan, tests, PHP 8.x patterns |
 | `documentation` | typo3-docs | RST, rendering, docs.typo3.org standards |
+| `git-workflow` | git-workflow | Branching, commits, tags, conventional commits |
+| `docker` | docker-development | Dockerfile, compose, container patterns |
+| `ddev` | typo3-ddev | DDEV configuration, services, commands |
+| `upgrade` | typo3-extension-upgrade | TYPO3 version upgrades, deprecations |
 
 ## Severity Levels
 
@@ -67,11 +84,11 @@ For full schema, see `references/checkpoints-schema.md`.
 | `warning` | Should fix | Recommendation |
 | `info` | Nice to have | Optional |
 
-## Using Reference Documentation
+## References
 
-- **Checkpoints schema**: `references/checkpoints-schema.md` -- full YAML schema for checkpoint definitions
-- **Checkpoint workflow**: `references/checkpoint-workflow.md` -- discovery, agent prompts, validation rules, YAML format, troubleshooting
-- **Migration guide**: `references/migration-guide.md` -- guide for adding checkpoints to skills that don't have them yet
+- `references/checkpoints-schema.md` -- full YAML schema for checkpoint definitions
+- `references/checkpoint-workflow.md` -- discovery, agent prompts, validation rules
+- `references/migration-guide.md` -- adding checkpoints to skills
 
 ---
 
