@@ -106,6 +106,7 @@ run_checkpoint() {
     local pattern="${4:-}"
     local severity="${5:-error}"
     local desc="${6:-}"
+    local fix_skill="${7:-}"
 
     local status="skip"
     local evidence=""
@@ -296,7 +297,7 @@ run_checkpoint() {
     evidence="${evidence//\"/\\\"}"
 
     # Add to results
-    RESULTS+=("{\"id\":\"$id\",\"status\":\"$status\",\"severity\":\"$severity\",\"evidence\":\"$evidence\"}")
+    RESULTS+=("{\"id\":\"$id\",\"status\":\"$status\",\"severity\":\"$severity\",\"evidence\":\"$evidence\",\"fix_skill\":\"${fix_skill:-$SKILL_ID}\"}")
 }
 
 echo "========================================"
@@ -428,6 +429,7 @@ current_target=""
 current_pattern=""
 current_severity="error"
 current_desc=""
+current_fix_skill=""
 in_mechanical_section=false
 in_llm_section=false
 
@@ -463,7 +465,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^llm_reviews:[[:space:]]*$ ]]; then
         # Process any pending checkpoint before switching sections
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
             current_id=""
         fi
         in_mechanical_section=false
@@ -480,7 +482,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*id:[[:space:]]*(.+)$ ]]; then
         # New checkpoint - process previous if exists
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
         fi
         current_id="${BASH_REMATCH[1]}"
         current_type=""
@@ -488,6 +490,7 @@ while IFS= read -r line; do
         current_pattern=""
         current_severity="error"
         current_desc=""
+        current_fix_skill=""
     elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]*(.+)$ ]]; then
         current_type="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
@@ -510,6 +513,8 @@ while IFS= read -r line; do
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*severity:[[:space:]]*(.+)$ ]]; then
         current_severity="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*fix_skill:[[:space:]]*(.+)$ ]]; then
+        current_fix_skill="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*(.+)$ ]]; then
         current_desc="${BASH_REMATCH[1]}"
         # Strip leading/trailing quotes from desc
@@ -519,7 +524,7 @@ done < "$CHECKPOINT_FILE"
 
 # Process last checkpoint if still in mechanical section
 if [[ -n "$current_id" ]] && $in_mechanical_section; then
-    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc"
+    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
 fi
 
 echo "----------------------------------------"
