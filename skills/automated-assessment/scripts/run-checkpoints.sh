@@ -84,7 +84,9 @@ if echo "test" | grep -qP "test" 2>/dev/null; then
     GREP_MODE="-P"
 else
     GREP_MODE="-E"
-    echo "Warning: grep -P (PCRE) not available, falling back to -E (POSIX ERE). Some patterns using \\s may not work." >&2
+    if ! $JSON_MODE; then
+        echo "Warning: grep -P (PCRE) not available, falling back to -E (POSIX ERE). Some patterns using \\s may not work." >&2
+    fi
 fi
 
 # Map skill_id to the slash command that fixes issues
