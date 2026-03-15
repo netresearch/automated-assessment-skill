@@ -10,21 +10,30 @@ permissions:
   contents: read
 
 jobs:
-  validate-assets:
-    name: Validate Assessment Assets
+  validate:
+    name: Validate Assessment Tooling
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Validate checkpoint asset files
-        run: |
-          for f in skills/automated-assessment/assets/*-checkpoints.yaml; do
-            echo "Validating $f..."
-            grep -q "^version: 1" "$f" || { echo "Missing version: 1 in $f"; exit 1; }
-            grep -q "^skill_id:" "$f" || { echo "Missing skill_id in $f"; exit 1; }
-            grep -q "^mechanical:" "$f" || { echo "Missing mechanical section in $f"; exit 1; }
-          done
-          echo "All checkpoint files valid"
-
       - name: Test checkpoint runner syntax
         run: bash -n skills/automated-assessment/scripts/run-checkpoints.sh
+
+      - name: Validate template checkpoint
+        run: |
+          f="skills/automated-assessment/assets/skill-template/checkpoints.yaml"
+          grep -q "^version: 1" "$f" || { echo "Missing version: 1 in template"; exit 1; }
+          grep -q "^skill_id:" "$f" || { echo "Missing skill_id in template"; exit 1; }
+          grep -q "^mechanical:" "$f" || { echo "Missing mechanical section in template"; exit 1; }
+          echo "Template checkpoint valid"
+
+      - name: Validate SKILL.md word counts
+        run: |
+          for f in skills/*/SKILL.md; do
+            words=$(wc -w < "$f")
+            if [ "$words" -gt 500 ]; then
+              echo "ERROR: $f is $words words (max 500)"
+              exit 1
+            fi
+            echo "OK: $f ($words words)"
+          done
