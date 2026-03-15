@@ -2,7 +2,7 @@
 # run-checkpoints.sh - Run mechanical checkpoint verification
 # Part of extension-assessment skill
 #
-# Usage: run-checkpoints.sh [--ignore-preconditions|--force] <checkpoint-file.yaml> <project-root>
+# Usage: run-checkpoints.sh [--ignore-preconditions|--force] [--json] <checkpoint-file.yaml> <project-root>
 #
 # Reads checkpoint definitions from YAML (new schema with mechanical: section)
 # and runs scripted checks. Outputs JSON report with pass/fail status.
@@ -32,9 +32,11 @@
 set -euo pipefail
 
 IGNORE_PRECONDITIONS=false
+JSON_MODE=false
 while [[ "${1:-}" == --* ]]; do
     case "$1" in
         --ignore-preconditions|--force) IGNORE_PRECONDITIONS=true; shift ;;
+        --json) JSON_MODE=true; shift ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -43,7 +45,7 @@ CHECKPOINT_FILE="${1:-}"
 PROJECT_ROOT="${2:-.}"
 
 if [[ -z "$CHECKPOINT_FILE" ]]; then
-    echo "Usage: $0 [--ignore-preconditions|--force] <checkpoint-file.yaml> <project-root>" >&2
+    echo "Usage: $0 [--ignore-preconditions|--force] [--json] <checkpoint-file.yaml> <project-root>" >&2
     exit 1
 fi
 
@@ -62,12 +64,30 @@ CHECKPOINT_FILE="$(cd "$(dirname "$CHECKPOINT_FILE")" && pwd)/$(basename "$CHECK
 
 cd "$PROJECT_ROOT"
 
-# Colors for terminal output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Colors for terminal output (suppressed in --json mode)
+if $JSON_MODE; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    NC=''
+else
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+fi
+
+# Detect grep PCRE capability
+if echo "test" | grep -qP "test" 2>/dev/null; then
+    GREP_MODE="-P"
+else
+    GREP_MODE="-E"
+    if ! $JSON_MODE; then
+        echo "Warning: grep -P (PCRE) not available, falling back to -E (POSIX ERE). Some patterns using \\s may not work." >&2
+    fi
+fi
 
 # Map skill_id to the slash command that fixes issues
 skill_fix_command() {
@@ -224,7 +244,7 @@ run_checkpoint() {
             for f in "${files[@]}"; do
                 if [[ -f "$f" ]]; then
                     checked_file="$f"
-                    if grep -qE "$pattern" "$f" 2>/dev/null; then
+                    if grep -q${GREP_MODE#-} "$pattern" "$f" 2>/dev/null; then
                         found=true
                         evidence="Pattern found in $f"
                         break
@@ -286,12 +306,14 @@ run_checkpoint() {
         skip) ((SKIP_COUNT++)) || true ;;
     esac
 
-    # Terminal output
-    case "$status" in
-        pass) echo -e "${GREEN}✓${NC} [$id] $desc" ;;
-        fail) echo -e "${RED}✗${NC} [$id] $desc - $evidence" ;;
-        skip) echo -e "${YELLOW}○${NC} [$id] $desc - SKIPPED" ;;
-    esac
+    # Terminal output (suppressed in --json mode)
+    if ! $JSON_MODE; then
+        case "$status" in
+            pass) echo -e "${GREEN}✓${NC} [$id] $desc" ;;
+            fail) echo -e "${RED}✗${NC} [$id] $desc - $evidence" ;;
+            skip) echo -e "${YELLOW}○${NC} [$id] $desc - SKIPPED" ;;
+        esac
+    fi
 
     # Escape quotes in evidence for JSON
     evidence="${evidence//\"/\\\"}"
@@ -300,12 +322,14 @@ run_checkpoint() {
     RESULTS+=("{\"id\":\"$id\",\"status\":\"$status\",\"severity\":\"$severity\",\"evidence\":\"$evidence\",\"fix_skill\":\"${fix_skill:-$SKILL_ID}\"}")
 }
 
-echo "========================================"
-echo "Automated Assessment - Scripted Checks"
-echo "========================================"
-echo "Project: $PROJECT_ROOT"
-echo "Checkpoints: $CHECKPOINT_FILE"
-echo "----------------------------------------"
+if ! $JSON_MODE; then
+    echo "========================================"
+    echo "Automated Assessment - Scripted Checks"
+    echo "========================================"
+    echo "Project: $PROJECT_ROOT"
+    echo "Checkpoints: $CHECKPOINT_FILE"
+    echo "----------------------------------------"
+fi
 
 # === Precondition evaluation ===
 # Parse preconditions: section and check each one before running mechanical checks
@@ -354,7 +378,7 @@ if ! $IGNORE_PRECONDITIONS; then
                         if [[ -f "$precond_target" ]] && grep -q "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                         ;;
                     regex)
-                        if [[ -f "$precond_target" ]] && grep -qE "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                        if [[ -f "$precond_target" ]] && grep -q${GREP_MODE#-} "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                         ;;
                     json_path)
                         if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
@@ -365,7 +389,7 @@ if ! $IGNORE_PRECONDITIONS; then
                 esac
 
                 if ! $precond_ok; then
-                    echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"
+                    if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"; fi
                     cat << PRECOND_EOF
 {"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_target"}
 PRECOND_EOF
@@ -401,7 +425,7 @@ PRECOND_EOF
                 if [[ -f "$precond_target" ]] && grep -q "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                 ;;
             regex)
-                if [[ -f "$precond_target" ]] && grep -qE "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                if [[ -f "$precond_target" ]] && grep -q${GREP_MODE#-} "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                 ;;
             json_path)
                 if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
@@ -412,7 +436,7 @@ PRECOND_EOF
         esac
 
         if ! $precond_ok; then
-            echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"
+            if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"; fi
             cat << PRECOND_EOF
 {"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_target"}
 PRECOND_EOF
@@ -451,7 +475,7 @@ while IFS= read -r line; do
     # Extract skill_id
     if [[ "$line" =~ ^skill_id:[[:space:]]*(.+)$ ]]; then
         SKILL_ID="${BASH_REMATCH[1]}"
-        echo -e "${BLUE}Skill: $SKILL_ID${NC}"
+        if ! $JSON_MODE; then echo -e "${BLUE}Skill: $SKILL_ID${NC}"; fi
         continue
     fi
 
@@ -527,14 +551,16 @@ if [[ -n "$current_id" ]] && $in_mechanical_section; then
     run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
 fi
 
-echo "----------------------------------------"
-echo -e "Summary: ${GREEN}$PASS_COUNT passed${NC}, ${RED}$FAIL_COUNT failed${NC}, ${YELLOW}$SKIP_COUNT skipped${NC}"
-# Show fix hint if there were failures
-if [[ $FAIL_COUNT -gt 0 ]]; then
-    FIX_CMD=$(skill_fix_command "$SKILL_ID")
-    echo -e "  ${BLUE}→ Fix: run ${FIX_CMD} to address failures${NC}"
+if ! $JSON_MODE; then
+    echo "----------------------------------------"
+    echo -e "Summary: ${GREEN}$PASS_COUNT passed${NC}, ${RED}$FAIL_COUNT failed${NC}, ${YELLOW}$SKIP_COUNT skipped${NC}"
+    # Show fix hint if there were failures
+    if [[ $FAIL_COUNT -gt 0 ]]; then
+        FIX_CMD=$(skill_fix_command "$SKILL_ID")
+        echo -e "  ${BLUE}→ Fix: run ${FIX_CMD} to address failures${NC}"
+    fi
+    echo "----------------------------------------"
 fi
-echo "----------------------------------------"
 
 # Output JSON report
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))
