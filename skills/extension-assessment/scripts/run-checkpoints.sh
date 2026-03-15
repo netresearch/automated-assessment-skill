@@ -2,7 +2,7 @@
 # run-checkpoints.sh - Run mechanical checkpoint verification
 # Part of extension-assessment skill
 #
-# Usage: run-checkpoints.sh <checkpoint-file.yaml> <project-root>
+# Usage: run-checkpoints.sh [--ignore-preconditions|--force] <checkpoint-file.yaml> <project-root>
 #
 # Reads checkpoint definitions from YAML (new schema with mechanical: section)
 # and runs scripted checks. Outputs JSON report with pass/fail status.
@@ -11,28 +11,39 @@
 # Expected format:
 #   version: 1
 #   skill_id: my-skill
+#   preconditions:
+#     - type: file_exists
+#       target: composer.json
 #   mechanical:
 #     - id: XX-01
 #       type: file_exists
 #       target: README.md
 #       severity: error
 #       desc: "..."
-#       scope: extension|application|library  # optional
 #   llm_reviews:
 #     - ... (skipped by this script)
 #
 # Supports:
 #   - Brace expansion in targets: {phpstan.neon,Build/phpstan.neon}
 #   - Glob patterns: Classes/**/*.php
-#   - Scope filtering: skip checks not matching project type
+#   - Preconditions: gate entire skill before any checks run
+#   - --ignore-preconditions/--force: bypass precondition checks
 
 set -euo pipefail
+
+IGNORE_PRECONDITIONS=false
+while [[ "${1:-}" == --* ]]; do
+    case "$1" in
+        --ignore-preconditions|--force) IGNORE_PRECONDITIONS=true; shift ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
 
 CHECKPOINT_FILE="${1:-}"
 PROJECT_ROOT="${2:-.}"
 
 if [[ -z "$CHECKPOINT_FILE" ]]; then
-    echo "Usage: $0 <checkpoint-file.yaml> <project-root>" >&2
+    echo "Usage: $0 [--ignore-preconditions|--force] <checkpoint-file.yaml> <project-root>" >&2
     exit 1
 fi
 
@@ -46,20 +57,10 @@ if [[ ! -d "$PROJECT_ROOT" ]]; then
     exit 1
 fi
 
+# Resolve checkpoint file to absolute path before cd
+CHECKPOINT_FILE="$(cd "$(dirname "$CHECKPOINT_FILE")" && pwd)/$(basename "$CHECKPOINT_FILE")"
+
 cd "$PROJECT_ROOT"
-
-# Detect project type (extension, application, or library)
-detect_project_type() {
-    if [[ -f "ext_emconf.php" ]] || grep -q '"typo3-cms-extension"' composer.json 2>/dev/null; then
-        echo "extension"
-    elif [[ -f "Dockerfile" ]] || [[ -f "docker-compose.yml" ]] || [[ -f "public/index.php" ]]; then
-        echo "application"
-    else
-        echo "library"
-    fi
-}
-
-PROJECT_TYPE=$(detect_project_type)
 
 # Colors for terminal output
 RED='\033[0;31m'
@@ -83,22 +84,9 @@ run_checkpoint() {
     local pattern="${4:-}"
     local severity="${5:-error}"
     local desc="${6:-}"
-    local scope="${7:-}"
 
     local status="skip"
     local evidence=""
-
-    # Check scope - skip if doesn't match project type
-    if [[ -n "$scope" ]] && [[ "$scope" != "$PROJECT_TYPE" ]]; then
-        status="skip"
-        evidence="Scope '$scope' doesn't match project type '$PROJECT_TYPE'"
-        # Update counts and output
-        ((SKIP_COUNT++)) || true
-        echo -e "${YELLOW}○${NC} [$id] $desc - SKIPPED (scope: $scope)"
-        evidence="${evidence//\"/\\\"}"
-        RESULTS+=("{\"id\":\"$id\",\"status\":\"$status\",\"severity\":\"$severity\",\"evidence\":\"$evidence\"}")
-        return
-    fi
 
     case "$type" in
         file_exists)
@@ -293,9 +281,122 @@ echo "========================================"
 echo "Extension Assessment - Scripted Checks"
 echo "========================================"
 echo "Project: $PROJECT_ROOT"
-echo -e "Type: ${BLUE}$PROJECT_TYPE${NC}"
 echo "Checkpoints: $CHECKPOINT_FILE"
 echo "----------------------------------------"
+
+# === Precondition evaluation ===
+# Parse preconditions: section and check each one before running mechanical checks
+if ! $IGNORE_PRECONDITIONS; then
+    precond_type=""
+    precond_target=""
+    precond_pattern=""
+    in_preconditions_section=false
+    precond_skill_id=""
+
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// }" ]] && continue
+
+        if [[ "$line" =~ ^skill_id:[[:space:]]*(.+)$ ]]; then
+            precond_skill_id="${BASH_REMATCH[1]}"
+            continue
+        fi
+
+        if [[ "$line" =~ ^preconditions:[[:space:]]*$ ]]; then
+            in_preconditions_section=true
+            continue
+        fi
+
+        # Any other top-level section ends preconditions
+        if [[ "$line" =~ ^[a-z_]+:[[:space:]]*$ ]] && [[ ! "$line" =~ ^preconditions: ]]; then
+            in_preconditions_section=false
+            continue
+        fi
+
+        if ! $in_preconditions_section; then
+            continue
+        fi
+
+        # Parse precondition fields
+        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*type:[[:space:]]*(.+)$ ]]; then
+            # New precondition - evaluate previous if exists
+            if [[ -n "$precond_type" ]]; then
+                # Evaluate the precondition
+                precond_ok=false
+                case "$precond_type" in
+                    file_exists)
+                        if [[ -f "$precond_target" ]] || [[ -d "$precond_target" ]]; then precond_ok=true; fi
+                        ;;
+                    contains)
+                        if [[ -f "$precond_target" ]] && grep -q "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                        ;;
+                    regex)
+                        if [[ -f "$precond_target" ]] && grep -qE "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                        ;;
+                    json_path)
+                        if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
+                        ;;
+                    command)
+                        if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                        ;;
+                esac
+
+                if ! $precond_ok; then
+                    echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"
+                    cat << PRECOND_EOF
+{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_target"}
+PRECOND_EOF
+                    exit 0
+                fi
+            fi
+            precond_type="${BASH_REMATCH[1]}"
+            precond_target=""
+            precond_pattern=""
+        elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
+            precond_target="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\'(.+)\'$ ]]; then
+            precond_target="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*(.+)$ ]]; then
+            precond_target="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\'(.+)\'$ ]]; then
+            precond_pattern="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\"(.+)\"$ ]]; then
+            precond_pattern="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*([^[:space:]].*)$ ]]; then
+            precond_pattern="${BASH_REMATCH[1]}"
+        fi
+    done < "$CHECKPOINT_FILE"
+
+    # Evaluate last precondition if exists
+    if [[ -n "$precond_type" ]]; then
+        precond_ok=false
+        case "$precond_type" in
+            file_exists)
+                if [[ -f "$precond_target" ]] || [[ -d "$precond_target" ]]; then precond_ok=true; fi
+                ;;
+            contains)
+                if [[ -f "$precond_target" ]] && grep -q "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                ;;
+            regex)
+                if [[ -f "$precond_target" ]] && grep -qE "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                ;;
+            json_path)
+                if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
+                ;;
+            command)
+                if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                ;;
+        esac
+
+        if ! $precond_ok; then
+            echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"
+            cat << PRECOND_EOF
+{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_target"}
+PRECOND_EOF
+            exit 0
+        fi
+    fi
+fi
 
 # Parse YAML with new schema (mechanical: section)
 # Using simple parsing since yq might not be available
@@ -305,7 +406,6 @@ current_target=""
 current_pattern=""
 current_severity="error"
 current_desc=""
-current_scope=""
 in_mechanical_section=false
 in_llm_section=false
 
@@ -341,7 +441,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^llm_reviews:[[:space:]]*$ ]]; then
         # Process any pending checkpoint before switching sections
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_scope"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc"
             current_id=""
         fi
         in_mechanical_section=false
@@ -358,7 +458,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*id:[[:space:]]*(.+)$ ]]; then
         # New checkpoint - process previous if exists
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_scope"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc"
         fi
         current_id="${BASH_REMATCH[1]}"
         current_type=""
@@ -366,7 +466,6 @@ while IFS= read -r line; do
         current_pattern=""
         current_severity="error"
         current_desc=""
-        current_scope=""
     elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]*(.+)$ ]]; then
         current_type="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
@@ -389,16 +488,16 @@ while IFS= read -r line; do
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*severity:[[:space:]]*(.+)$ ]]; then
         current_severity="${BASH_REMATCH[1]}"
-    elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*[\"\']*(.+)[\"\']*$ ]]; then
+    elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*(.+)$ ]]; then
         current_desc="${BASH_REMATCH[1]}"
-    elif [[ "$line" =~ ^[[:space:]]*scope:[[:space:]]*(.+)$ ]]; then
-        current_scope="${BASH_REMATCH[1]}"
+        # Strip leading/trailing quotes from desc
+        current_desc=$(echo "$current_desc" | sed 's/^["\x27]//; s/["\x27]$//')
     fi
 done < "$CHECKPOINT_FILE"
 
 # Process last checkpoint if still in mechanical section
 if [[ -n "$current_id" ]] && $in_mechanical_section; then
-    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_scope"
+    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc"
 fi
 
 echo "----------------------------------------"
