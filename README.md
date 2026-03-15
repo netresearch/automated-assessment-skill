@@ -152,6 +152,7 @@ This project uses split licensing:
 - **Content** (skill definitions, documentation, references): [CC-BY-SA-4.0](LICENSE-CC-BY-SA-4.0)
 
 See the individual license files for full terms.
+
 ---
 
 > **Netresearch DTT GmbH** - [netresearch.de](https://www.netresearch.de/)
