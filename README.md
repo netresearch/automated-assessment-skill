@@ -1,6 +1,6 @@
 # Automated Assessment Skill
 
-[![CI](https://github.com/netresearch/extension-assessment-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/netresearch/extension-assessment-skill/actions/workflows/ci.yml)
+[![CI](https://github.com/netresearch/automated-assessment-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/netresearch/automated-assessment-skill/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20CC--BY--SA--4.0-blue.svg)](#license)
 
 Systematic project assessment against all Netresearch skills with checkpoint-based verification - by Netresearch.
@@ -22,7 +22,7 @@ This skill enforces **systematic verification** through:
 ### Via Netresearch Marketplace (Recommended)
 
 ```bash
-claude plugins:install netresearch/extension-assessment-skill
+claude plugins:install netresearch/automated-assessment-skill
 ```
 
 ### Via Composer
