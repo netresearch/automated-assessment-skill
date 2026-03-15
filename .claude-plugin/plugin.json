@@ -1,7 +1,7 @@
 {
     "name": "automated-assessment",
-    "version": "2.2.0",
-    "description": "Systematic project assessment against Netresearch skills with scripted verification + LLM review",
+    "version": "2.3.0",
+    "description": "Systematic project assessment against checkpoint-enabled skills with scripted verification + LLM review",
     "repository": "https://github.com/netresearch/automated-assessment-skill",
     "license": "(MIT AND CC-BY-SA-4.0)",
     "author": {
@@ -9,6 +9,7 @@
         "url": "https://www.netresearch.de"
     },
     "skills": [
-        "./skills/automated-assessment"
+        "./skills/automated-assessment",
+        "./skills/add-checkpoints"
     ]
 }

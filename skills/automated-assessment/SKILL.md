@@ -1,11 +1,11 @@
 ---
 name: automated-assessment
-description: "Use when assessing projects for compliance against Netresearch skill standards, running quality audits, or verifying readiness before release."
+description: "Use when assessing projects for compliance against checkpoint-enabled skills, running quality audits, or verifying readiness before release."
 ---
 
 # Automated Assessment Skill
 
-Systematic compliance assessment for projects against all Netresearch skills.
+Systematic compliance assessment for projects against checkpoint-enabled skills.
 
 ## Running the Assessment
 

@@ -1,6 +1,6 @@
 {
     "name": "netresearch/automated-assessment-skill",
-    "description": "Systematic project assessment against Netresearch skills with scripted verification + LLM review",
+    "description": "Systematic project assessment against checkpoint-enabled skills with scripted verification + LLM review",
     "replace": {
         "netresearch/agent-extension-assessment": "self.version",
         "netresearch/automated-assessment-skill": "self.version"
@@ -18,7 +18,10 @@
         "netresearch/composer-agent-skill-plugin": "^1.0"
     },
     "extra": {
-        "ai-agent-skill": "skills/automated-assessment/SKILL.md"
+        "ai-agent-skill": [
+            "skills/automated-assessment/SKILL.md",
+            "skills/add-checkpoints/SKILL.md"
+        ]
     },
     "support": {
         "issues": "https://github.com/netresearch/automated-assessment-skill/issues",
