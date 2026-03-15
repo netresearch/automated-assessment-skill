@@ -234,6 +234,132 @@ TC-01  = typo3-conformance checkpoint 1
 3. **Phase 3**: Add checkpoints to remaining skills
 4. **Phase 4**: Integrate with CI (automated assessment on PR)
 
+## Review & Auto-improve Workflow
+
+The `--review` and `--autoimprove` flags close the feedback loop from assessment results back into skill definitions. Instead of just reporting failures, they analyze *why* checkpoints fail and propose changes to the skills themselves.
+
+### Feedback Loop
+
+```
+assessment → failures → categorization → improvement proposals → skill updates
+```
+
+1. Run normal assessment (mechanical + LLM checks)
+2. Categorize each failure by root cause
+3. Generate improvement proposals
+4. Optionally create GitHub issues in skill repos
+
+### `--review` Output
+
+`--review` produces a categorized failure report. Each failure is classified:
+
+| Category | Meaning | Example |
+|----------|---------|---------|
+| `fixable` | A skill's slash command can fix this | Missing badge → `/github-project` adds it |
+| `skill-gap` | Skill doesn't cover this pattern | New TYPO3 14 API not in typo3-conformance |
+| `checkpoint-issue` | Checkpoint is miscalibrated | Severity too high, precondition too broad |
+
+Output format:
+
+```json
+{
+  "review": {
+    "fixable": [
+      {"id": "GH-03", "skill": "github-project", "fix_command": "/github-project"}
+    ],
+    "skill_gaps": [
+      {"id": "TC-12", "skill": "typo3-conformance", "gap": "No checkpoint for PSR-14 event usage"}
+    ],
+    "checkpoint_issues": [
+      {"id": "ER-05", "skill": "enterprise-readiness", "issue": "severity:error but only applies to public packages"}
+    ]
+  }
+}
+```
+
+### `--autoimprove` Workflow
+
+`--autoimprove` extends `--review` with concrete fix proposals:
+
+1. **Autofix phase**: Run `--autofix` for all `fixable` failures
+2. **Analysis phase**: For remaining failures (`skill-gap` and `checkpoint-issue`), analyze root cause
+3. **Proposal phase**: Generate structured improvement proposals
+4. **Issue phase** (with `--create-issues`): File GitHub issues in the relevant skill repos
+
+### Improvement Proposal Format
+
+Each proposal targets a specific file in a skill repo:
+
+```json
+{
+  "improvements": [
+    {
+      "skill": "typo3-conformance",
+      "category": "skill-gap",
+      "checkpoint_id": "TC-12",
+      "proposed_action": "add_checkpoint",
+      "reason": "No checkpoint verifies PSR-14 event listener registration",
+      "target_file": "checkpoints.yaml",
+      "suggestion": {
+        "id": "TC-15",
+        "type": "contains",
+        "target": "Configuration/Services.yaml",
+        "pattern": "listener",
+        "severity": "warning",
+        "desc": "Extensions should register event listeners via Services.yaml"
+      }
+    },
+    {
+      "skill": "enterprise-readiness",
+      "category": "checkpoint-issue",
+      "checkpoint_id": "ER-05",
+      "proposed_action": "modify_checkpoint",
+      "reason": "Severity error is too strict for private extensions",
+      "target_file": "checkpoints.yaml",
+      "suggestion": {
+        "change": "severity",
+        "from": "error",
+        "to": "warning"
+      }
+    },
+    {
+      "skill": "github-project",
+      "category": "checkpoint-issue",
+      "checkpoint_id": "GH-08",
+      "proposed_action": "add_precondition",
+      "reason": "Check fails on non-TYPO3 projects that don't use Codecov",
+      "target_file": "checkpoints.yaml",
+      "suggestion": {
+        "add_precondition": {
+          "type": "file_exists",
+          "target": "composer.json"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Proposed Actions
+
+| Action | What It Changes | When Used |
+|--------|----------------|-----------|
+| `add_checkpoint` | New entry in `checkpoints.yaml` | Skill gap — missing coverage |
+| `modify_checkpoint` | Change severity, desc, or target | Checkpoint miscalibrated |
+| `add_precondition` | New precondition to narrow scope | Checkpoint fires on wrong project types |
+| `update_skill` | Propose SKILL.md content change | Skill guidance incomplete |
+
+### `--create-issues` Integration
+
+When `--autoimprove --create-issues` is used, each improvement proposal becomes a GitHub issue in the target skill's repository:
+
+- **Title**: `[assessment] {proposed_action}: {checkpoint_id} — {short reason}`
+- **Body**: Full proposal JSON, evidence from the assessment, and suggested fix
+- **Labels**: `assessment`, `improvement`
+- **Repo**: Determined from skill metadata (e.g., `netresearch/typo3-conformance-skill`)
+
+Issues are only created for `skill-gap` and `checkpoint-issue` categories — `fixable` items are handled by `--autofix`.
+
 ## Troubleshooting
 
 ### "Checkpoint X has null status"
