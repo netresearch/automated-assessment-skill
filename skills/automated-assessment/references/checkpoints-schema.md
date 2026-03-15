@@ -43,6 +43,7 @@ mechanical:
     target: README.md                  # File/path to check
     severity: error                    # error | warning | info
     desc: "README.md must exist"       # Human-readable description
+    fix_skill: agent-rules             # Optional: skill that can fix this (overrides skill_id)
 
   - id: GH-02
     type: contains
@@ -237,6 +238,7 @@ Run arbitrary command, check exit code:
 | `prompt` | No* | Inline prompt text (alternative to rubric) |
 | `severity` | Yes | error, warning, or info |
 | `desc` | Yes | Short description for reports |
+| `fix_skill` | No | Skill that can fix this checkpoint's failures (overrides `skill_id`) |
 
 *Either `rubric` or `prompt` is required.
 
@@ -258,6 +260,19 @@ Related checkpoints are grouped into domains for efficient LLM batching:
 | `error` | Must fix before release | Blocks release |
 | `warning` | Should fix | Strong recommendation |
 | `info` | Nice to have | Optional improvement |
+
+## Fix Skill Override
+
+Mechanical checkpoints support an optional `fix_skill` field:
+
+```yaml
+fix_skill: agent-rules  # Optional: skill that can fix this checkpoint's failures
+```
+
+When present, `fix_skill` overrides the default `skill_id` to `fix_command` mapping for autofix.
+This is useful when a checkpoint defined in one skill (e.g., `agents`) is best fixed by a
+different skill (e.g., `agent-rules` which generates AGENTS.md). If not specified, the
+checkpoint's `fix_skill` defaults to the file's `skill_id`.
 
 ## Resolution Logic
 
