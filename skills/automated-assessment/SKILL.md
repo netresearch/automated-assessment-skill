@@ -92,4 +92,4 @@ For full schema, see `references/checkpoints-schema.md`.
 
 ---
 
-> **Contributing:** Report issues at https://github.com/netresearch/extension-assessment-skill
+> **Contributing:** Report issues at https://github.com/netresearch/automated-assessment-skill
