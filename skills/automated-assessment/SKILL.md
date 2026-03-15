@@ -9,7 +9,7 @@ Systematic compliance assessment for projects against all Netresearch skills.
 
 ## Why This Skill Exists
 
-LLMs typically cherry-pick obvious issues and miss 50-80% of requirements. This skill enforces systematic verification through scripted pre-flight checks, domain-batched LLM agents, and structured JSON output.
+LLMs cherry-pick obvious issues and miss 50-80% of requirements. This skill enforces systematic verification through scripted checks, domain-batched LLM agents, and structured JSON output.
 
 ## Running the Assessment
 
@@ -18,6 +18,8 @@ LLMs typically cherry-pick obvious issues and miss 50-80% of requirements. This 
 /assess skill-repo typo3-testing     # Assess against specific skills only
 /assess --force                      # Run all skills, ignore preconditions
 /assess --mechanical-only            # Skip LLM reviews, only scripted checks
+/assess --autofix                    # Find and fix issues automatically
+/assess skill-repo --autofix        # Fix specific skill's issues only
 ```
 
 ### Options
@@ -27,41 +29,24 @@ LLMs typically cherry-pick obvious issues and miss 50-80% of requirements. This 
 | `<skill-names>` | Only run checkpoints for named skills |
 | `--force` | Skip precondition checks, run all skills |
 | `--mechanical-only` | Skip LLM reviews, only run scripted checks |
+| `--autofix` | Fix failures by invoking the responsible skill, then re-verify |
 | `--json` | Output raw JSON instead of formatted report |
 
 ### Steps Performed
 
-1. **Detect project root**
-2. **Discover all skills** from plugin cache and local skills
-3. **Evaluate preconditions** — skip skills whose preconditions don't match project type
-4. **Find checkpoints** using convention-with-override pattern
-5. **Run scripted checks** (file_exists, contains, regex, etc.)
-6. **Group LLM checkpoints** by domain, spawn 3-4 parallel agents
-7. **Collect JSON results** and validate completeness
-8. **Generate compliance report**
+1. Detect project root and discover matching skills
+2. Evaluate preconditions — skip non-matching skills
+3. Run scripted checks (mechanical checkpoints)
+4. Group LLM checkpoints by domain, spawn parallel agents
+5. Collect results and generate compliance report
 
 ## Checkpoint Types
 
-For full schema, see `references/checkpoints-schema.md`.
+**Mechanical:** `file_exists`, `file_not_exists`, `contains`, `not_contains`, `regex`, `json_path`, `gh_api`, `command` — scripted checks with deterministic pass/fail.
 
-### Mechanical Checks (Scripted)
+**LLM:** `llm_review` — requires LLM judgment, grouped by domain.
 
-| Type | Description |
-|------|-------------|
-| `file_exists` | `test -f $target` |
-| `file_not_exists` | `test ! -f $target` |
-| `contains` | `grep -q "$pattern" $target` |
-| `not_contains` | `! grep -q "$pattern" $target` |
-| `regex` | `grep -qE "$pattern" $target` |
-| `json_path` | `jq -e "$path" $target` |
-| `gh_api` | GitHub API check via `gh api` |
-| `command` | Run arbitrary command, check exit code |
-
-### LLM Reviews (Agent)
-
-| Type | Description |
-|------|-------------|
-| `llm_review` | Requires LLM judgment, grouped by domain |
+Full schema in `references/checkpoints-schema.md`.
 
 ## Domain Groups for LLM Agents
 
@@ -75,6 +60,21 @@ For full schema, see `references/checkpoints-schema.md`.
 | `docker` | docker-development | Dockerfile, compose, container patterns |
 | `ddev` | typo3-ddev | DDEV configuration, services, commands |
 | `upgrade` | typo3-extension-upgrade | TYPO3 version upgrades, deprecations |
+
+## Autofix Workflow
+
+When `--autofix` is used:
+
+1. Run mechanical checks as normal
+2. For each skill with failures, invoke its slash command (e.g., `/agent-rules`)
+3. Re-run failed checkpoints to verify fixes
+4. Report results:
+
+| Status | Meaning |
+|--------|---------|
+| `auto-fixed` | Skill ran and checkpoint now passes |
+| `needs-review` | LLM review item — run skill manually |
+| `unfixable` | Checkpoint still fails after skill ran |
 
 ## Severity Levels
 
