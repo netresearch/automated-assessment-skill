@@ -1,0 +1,104 @@
+# Checkpoints for typo3-ckeditor5 skill
+# Validates CKEditor 5 plugin structure and TYPO3 integration
+
+version: 1
+skill_id: typo3-ckeditor5
+
+preconditions:
+  - type: file_exists
+    target: ext_emconf.php
+  - type: command
+    pattern: "find . -path '*/JavaScript/Ckeditor*' -o -path '*/JavaScript/ckeditor*' -o -path '*/RTE/*.yaml' -o -path '*/RTE/*.yml' | head -1 | grep -q ."
+
+mechanical:
+  # === PLUGIN REGISTRATION ===
+  - id: CK-01
+    type: file_exists
+    target: ext_localconf.php
+    severity: error
+    desc: "ext_localconf.php must exist for plugin registration"
+
+  - id: CK-02
+    type: contains
+    target: ext_localconf.php
+    pattern: "RTE"
+    severity: warning
+    desc: "ext_localconf.php should register RTE presets"
+
+  - id: CK-03
+    type: contains
+    target: ext_localconf.php
+    pattern: "ckeditor5"
+    severity: warning
+    desc: "ext_localconf.php should register CKEditor 5 plugins"
+
+  # === RTE YAML CONFIGURATION ===
+  - id: CK-04
+    type: command
+    pattern: "find . -path '*/Configuration/RTE/*.yaml' -o -path '*/Configuration/RTE/*.yml' | head -1 | grep -q ."
+    severity: warning
+    desc: "RTE YAML preset should exist in Configuration/RTE/"
+
+  - id: CK-05
+    type: command
+    pattern: "find . -path '*/Configuration/RTE/*.yaml' -o -path '*/Configuration/RTE/*.yml' | head -1 | xargs grep -q 'editor:'"
+    severity: warning
+    desc: "RTE YAML preset should have editor configuration block"
+
+  - id: CK-06
+    type: command
+    pattern: "find . -path '*/Configuration/RTE/*.yaml' -o -path '*/Configuration/RTE/*.yml' | head -1 | xargs grep -q 'toolbar:'"
+    severity: info
+    desc: "RTE YAML preset should configure toolbar items"
+
+  # === PLUGIN JS FILES ===
+  - id: CK-07
+    type: command
+    pattern: "find . -path '*/JavaScript/Ckeditor*/*.js' -o -path '*/JavaScript/ckeditor*/*.js' -o -path '*/JavaScript/Ckeditor*/*.ts' | head -1 | grep -q ."
+    severity: warning
+    desc: "CKEditor plugin JavaScript files should exist"
+
+  # === NO JQUERY IN CKEDITOR CODE ===
+  - id: CK-08
+    type: command
+    pattern: "! find . -path '*/JavaScript/Ckeditor*' -name '*.js' -exec grep -l 'jquery' {} + 2>/dev/null | head -1 | grep -q ."
+    severity: error
+    desc: "CKEditor 5 plugins must not import jQuery"
+
+  - id: CK-09
+    type: command
+    pattern: "! find . -path '*/JavaScript/Ckeditor*' -name '*.js' -exec grep -l '\\$(' {} + 2>/dev/null | head -1 | grep -q ."
+    severity: warning
+    desc: "CKEditor 5 plugins should use native DOM APIs, not jQuery selectors"
+
+  # === LEGACY PATTERNS ===
+  - id: CK-10
+    type: command
+    pattern: "! find . -path '*/Configuration/RTE/*.yaml' -o -path '*/Configuration/RTE/*.yml' | xargs grep -l 'CKEditor4' 2>/dev/null | head -1 | grep -q ."
+    severity: warning
+    desc: "RTE config should not reference CKEditor 4 patterns"
+
+llm_reviews:
+  - id: CK-20
+    domain: ckeditor5
+    prompt: |
+      Review the CKEditor 5 TYPO3 integration for correctness:
+      1. Is the plugin registered in ext_localconf.php with correct entryPoint path?
+      2. Does the RTE YAML preset follow the editor.config structure?
+      3. Does the plugin follow class-based architecture (separate Editing + UI plugins)?
+      4. Are schema, converters, and commands properly separated?
+      5. Do AJAX response handlers use correct backend property names?
+    severity: warning
+    desc: "CKEditor 5 plugin structure and registration"
+
+  - id: CK-21
+    domain: ckeditor5
+    prompt: |
+      Review the CKEditor 5 plugin for modern patterns:
+      1. Are native DOM APIs used instead of jQuery?
+      2. Is the plugin compatible with TYPO3 v12+ CKEditor 5 API?
+      3. Are toolbar items properly named and grouped in YAML?
+      4. Is content processing (upcast/downcast converters) correctly implemented?
+      5. Does the plugin avoid deprecated CKEditor 4 patterns?
+    severity: info
+    desc: "CKEditor 5 modern pattern adherence"
