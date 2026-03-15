@@ -18,7 +18,7 @@ jobs:
 
       - name: Validate checkpoint asset files
         run: |
-          for f in skills/extension-assessment/assets/*-checkpoints.yaml; do
+          for f in skills/automated-assessment/assets/*-checkpoints.yaml; do
             echo "Validating $f..."
             grep -q "^version: 1" "$f" || { echo "Missing version: 1 in $f"; exit 1; }
             grep -q "^skill_id:" "$f" || { echo "Missing skill_id in $f"; exit 1; }
@@ -27,4 +27,4 @@ jobs:
           echo "All checkpoint files valid"
 
       - name: Test checkpoint runner syntax
-        run: bash -n skills/extension-assessment/scripts/run-checkpoints.sh
+        run: bash -n skills/automated-assessment/scripts/run-checkpoints.sh
