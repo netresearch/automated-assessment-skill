@@ -69,6 +69,28 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Map skill_id to the slash command that fixes issues
+skill_fix_command() {
+    local skill_id="$1"
+    case "$skill_id" in
+        skill-repo) echo "/skill-repo" ;;
+        github-project) echo "/github-project" ;;
+        agents|agent-rules) echo "/agent-rules" ;;
+        enterprise-readiness) echo "/enterprise-readiness" ;;
+        security-audit) echo "/security-audit" ;;
+        typo3-conformance) echo "/typo3-conformance" ;;
+        typo3-testing) echo "/typo3-testing" ;;
+        typo3-docs) echo "/typo3-docs" ;;
+        typo3-ddev) echo "/typo3-ddev" ;;
+        typo3-extension-upgrade) echo "/typo3-extension-upgrade" ;;
+        php-modernization) echo "/php-modernization" ;;
+        netresearch-branding) echo "/netresearch-branding" ;;
+        git-workflow) echo "/git-workflow" ;;
+        docker-development) echo "/docker-development" ;;
+        *) echo "/$skill_id" ;;
+    esac
+}
+
 # Results array
 declare -a RESULTS=()
 PASS_COUNT=0
@@ -278,7 +300,7 @@ run_checkpoint() {
 }
 
 echo "========================================"
-echo "Extension Assessment - Scripted Checks"
+echo "Automated Assessment - Scripted Checks"
 echo "========================================"
 echo "Project: $PROJECT_ROOT"
 echo "Checkpoints: $CHECKPOINT_FILE"
@@ -502,6 +524,11 @@ fi
 
 echo "----------------------------------------"
 echo -e "Summary: ${GREEN}$PASS_COUNT passed${NC}, ${RED}$FAIL_COUNT failed${NC}, ${YELLOW}$SKIP_COUNT skipped${NC}"
+# Show fix hint if there were failures
+if [[ $FAIL_COUNT -gt 0 ]]; then
+    FIX_CMD=$(skill_fix_command "$SKILL_ID")
+    echo -e "  ${BLUE}→ Fix: run ${FIX_CMD} to address failures${NC}"
+fi
 echo "----------------------------------------"
 
 # Output JSON report
@@ -513,6 +540,7 @@ cat << EOF
   "checkpoint_file": "$CHECKPOINT_FILE",
   "project_root": "$PROJECT_ROOT",
   "skill_id": "$SKILL_ID",
+  "fix_command": "$(skill_fix_command "$SKILL_ID")",
   "schema_version": 1,
   "summary": {
     "total": $TOTAL,
