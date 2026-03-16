@@ -34,6 +34,7 @@ Install with any [Agent Skills](https://agentskills.io)-compatible agent:
 
 ```bash
 npx skills add https://github.com/netresearch/automated-assessment-skill --skill automated-assessment
+npx skills add https://github.com/netresearch/automated-assessment-skill --skill add-checkpoints
 ```
 
 ### Download Release
@@ -53,6 +54,7 @@ composer require netresearch/automated-assessment-skill
 ```
 
 Requires [netresearch/composer-agent-skill-plugin](https://github.com/netresearch/composer-agent-skill-plugin).
+
 ## Usage
 
 ### Run Assessment
