@@ -111,6 +111,42 @@ skill_fix_command() {
     esac
 }
 
+# Validate that a command is safe to eval.
+# Uses a whitelist of allowed base commands and rejects dangerous patterns.
+# Returns 0 if safe, 1 if rejected (with reason on stdout).
+is_safe_eval_command() {
+    local pattern="$1"
+    local cmd_base
+    cmd_base=$(echo "$pattern" | awk '{print $1}' | sed 's|^\./||')
+
+    # Whitelist of allowed base commands for checkpoint execution
+    local -a allowed_cmds=(
+        grep egrep fgrep find test wc jq yq python3 python composer php
+        phpstan phpcs phpcbf rector phpunit node npm cat head tail ls
+        stat file diff sort uniq git make go sed awk tr cut
+    )
+
+    # Reject commands containing dangerous patterns regardless of base
+    if [[ "$pattern" =~ (curl.*\|.*sh|wget.*\|.*sh|eval[[:space:]]|exec[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R|\|[[:space:]]*(ba)?sh) ]]; then
+        echo "contains dangerous pattern"
+        return 1
+    fi
+
+    # Allow vendor/bin/* paths
+    if [[ "$cmd_base" == vendor/bin/* ]]; then
+        return 0
+    fi
+
+    for acmd in "${allowed_cmds[@]}"; do
+        if [[ "$cmd_base" == "$acmd" ]]; then
+            return 0
+        fi
+    done
+
+    echo "'$cmd_base' not in allowed command whitelist"
+    return 1
+}
+
 # Results array
 declare -a RESULTS=()
 PASS_COUNT=0
@@ -285,12 +321,23 @@ run_checkpoint() {
             evidence="GitHub API checks require interactive mode"
             ;;
         command)
-            if eval "$pattern" > /dev/null 2>&1; then
-                status="pass"
-                evidence="Command succeeded"
+            # eval is needed here because checkpoint YAML commands may contain
+            # shell features like pipes, redirections, and subshells that cannot
+            # be executed via simple command invocation. To mitigate injection
+            # risk, we validate the command's base binary against a whitelist
+            # and reject dangerous patterns before execution.
+            local reject_reason
+            if reject_reason=$(is_safe_eval_command "$pattern"); then
+                if eval "$pattern" > /dev/null 2>&1; then
+                    status="pass"
+                    evidence="Command succeeded"
+                else
+                    status="fail"
+                    evidence="Command failed"
+                fi
             else
                 status="fail"
-                evidence="Command failed"
+                evidence="Command rejected: $reject_reason"
             fi
             ;;
         *)
@@ -384,7 +431,9 @@ if ! $IGNORE_PRECONDITIONS; then
                         if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
                         ;;
                     command)
-                        if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                        if is_safe_eval_command "$precond_pattern" > /dev/null 2>&1; then
+                            if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                        fi
                         ;;
                 esac
 
