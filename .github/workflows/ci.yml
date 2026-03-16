@@ -6,34 +6,32 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
-  validate:
-    name: Validate Assessment Tooling
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+  ci:
+    uses: netresearch/skill-repo-skill/.github/workflows/ci-python.yml@main
+    permissions:
+      contents: read
+    with:
+      python-versions: '["3.12"]'
+      test-command: |
+        echo "=== Validating shell script syntax ==="
+        bash -n skills/automated-assessment/scripts/run-checkpoints.sh
 
-      - name: Test checkpoint runner syntax
-        run: bash -n skills/automated-assessment/scripts/run-checkpoints.sh
+        echo "=== Validating template checkpoint ==="
+        f="skills/automated-assessment/assets/skill-template/checkpoints.yaml"
+        grep -q "^version: 1" "$f" || { echo "Missing version: 1 in template"; exit 1; }
+        grep -q "^skill_id:" "$f" || { echo "Missing skill_id in template"; exit 1; }
+        grep -q "^mechanical:" "$f" || { echo "Missing mechanical section in template"; exit 1; }
+        echo "Template checkpoint valid"
 
-      - name: Validate template checkpoint
-        run: |
-          f="skills/automated-assessment/assets/skill-template/checkpoints.yaml"
-          grep -q "^version: 1" "$f" || { echo "Missing version: 1 in template"; exit 1; }
-          grep -q "^skill_id:" "$f" || { echo "Missing skill_id in template"; exit 1; }
-          grep -q "^mechanical:" "$f" || { echo "Missing mechanical section in template"; exit 1; }
-          echo "Template checkpoint valid"
-
-      - name: Validate SKILL.md word counts
-        run: |
-          for f in skills/*/SKILL.md; do
-            words=$(wc -w < "$f")
-            if [ "$words" -gt 500 ]; then
-              echo "ERROR: $f is $words words (max 500)"
-              exit 1
-            fi
-            echo "OK: $f ($words words)"
-          done
+        echo "=== Validating SKILL.md word counts ==="
+        for f in skills/*/SKILL.md; do
+          words=$(wc -w < "$f")
+          if [ "$words" -gt 500 ]; then
+            echo "ERROR: $f is $words words (max 500)"
+            exit 1
+          fi
+          echo "OK: $f ($words words)"
+        done
