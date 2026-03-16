@@ -480,7 +480,9 @@ PRECOND_EOF
                 if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
                 ;;
             command)
-                if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                if is_safe_eval_command "$precond_pattern" > /dev/null 2>&1; then
+                    if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                fi
                 ;;
         esac
 
