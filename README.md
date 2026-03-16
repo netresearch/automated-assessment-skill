@@ -19,18 +19,40 @@ This skill enforces **systematic verification** through:
 
 ## Installation
 
-### Via Netresearch Marketplace (Recommended)
+### Marketplace (Recommended)
+
+Add the [Netresearch marketplace](https://github.com/netresearch/claude-code-marketplace) once, then browse and install skills:
 
 ```bash
-claude plugins:install netresearch/automated-assessment-skill
+# Claude Code
+/plugin marketplace add netresearch/claude-code-marketplace
 ```
 
-### Via Composer
+### npx ([skills.sh](https://skills.sh))
+
+Install with any [Agent Skills](https://agentskills.io)-compatible agent:
 
 ```bash
-composer require netresearch/agent-extension-assessment
+npx skills add https://github.com/netresearch/automated-assessment-skill --skill automated-assessment
 ```
 
+### Download Release
+
+Download the [latest release](https://github.com/netresearch/automated-assessment-skill/releases/latest) and extract to your agent's skills directory.
+
+### Git Clone
+
+```bash
+git clone https://github.com/netresearch/automated-assessment-skill.git
+```
+
+### Composer (PHP Projects)
+
+```bash
+composer require netresearch/automated-assessment-skill
+```
+
+Requires [netresearch/composer-agent-skill-plugin](https://github.com/netresearch/composer-agent-skill-plugin).
 ## Usage
 
 ### Run Assessment
