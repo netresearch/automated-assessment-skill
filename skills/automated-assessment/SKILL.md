@@ -1,6 +1,13 @@
 ---
 name: automated-assessment
-description: "Use when assessing projects for compliance against checkpoint-enabled skills, running quality audits, or verifying readiness before release."
+description: "ALWAYS use for ANY project compliance assessment — running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
+license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
+compatibility: "Requires bash, jq, gh CLI."
+metadata:
+  author: Netresearch DTT GmbH
+  version: "2.4.1"
+  repository: https://github.com/netresearch/automated-assessment-skill
+allowed-tools: Bash(bash:*) Bash(jq:*) Bash(gh:*) Read Glob Grep Agent
 ---
 
 # Automated Assessment Skill
@@ -63,23 +70,13 @@ With `--autofix`: run checks, invoke responsible skill for failures (e.g., `/age
 
 ## Review & Improvement
 
-`--review` and `--autoimprove` create a feedback loop from assessment back into skills.
+`--review` and `--autoimprove` create a feedback loop from assessment back into skills. Categories: `fixable` (skill can fix), `skill-gap` (propose SKILL.md update), `checkpoint-issue` (miscalibrated check).
 
-| Category | Meaning | Action |
-|----------|---------|--------|
-| `fixable` | A skill can fix this | `--autofix` runs the skill |
-| `skill-gap` | Skill doesn't cover this | Propose SKILL.md update |
-| `checkpoint-issue` | Checkpoint miscalibrated | Propose checkpoint change |
-
-`--autoimprove` runs autofix first, then for remaining failures: analyzes root cause, proposes changes (checkpoint severity/precondition/description), and outputs improvement JSON. Use `--create-issues` to file issues in skill repos.
+`--autoimprove` runs autofix first, then analyzes remaining failures and proposes checkpoint changes. Use `--create-issues` to file issues in skill repos.
 
 ## Severity Levels
 
-| Level | Meaning | Action |
-|-------|---------|--------|
-| `error` | Must fix before release | Blocks release |
-| `warning` | Should fix | Recommendation |
-| `info` | Nice to have | Optional |
+`error` = blocks release, `warning` = recommendation, `info` = optional.
 
 ## References
 

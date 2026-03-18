@@ -1,6 +1,11 @@
 ---
 name: add-checkpoints
-description: "Use when adding assessment checkpoints to a skill, evaluating whether a skill is suitable for checkpoints, or generating checkpoint YAML from skill requirements."
+description: "ALWAYS use when adding assessment checkpoints to a skill, evaluating checkpoint suitability, or generating checkpoint YAML from skill requirements. Activate on 'add checkpoints', 'generate checkpoints', or checkpoint schema tasks."
+license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
+metadata:
+  author: Netresearch DTT GmbH
+  version: "2.4.1"
+  repository: https://github.com/netresearch/automated-assessment-skill
 ---
 
 # Add Checkpoints to a Skill

@@ -1,0 +1,46 @@
+{
+  "skill_name": "automated-assessment",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "assess-against-all-skills",
+      "prompt": "Assess this project against all matching checkpoint-enabled skills. Run the full assessment.",
+      "expected_output": "Runs /assess command, discovers matching skills via preconditions, executes mechanical checks and LLM reviews, produces compliance report.",
+      "files": [],
+      "assertions": [
+        "Invokes the /assess command or equivalent assessment workflow",
+        "Discovers skills by evaluating preconditions against the project",
+        "Runs mechanical checkpoint types (file_exists, contains, regex, etc.)",
+        "Groups LLM checkpoints by domain for parallel review",
+        "Produces a structured compliance report with pass/fail per checkpoint"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "mechanical-checks-only",
+      "prompt": "Run mechanical checks only on this project, skip all LLM reviews.",
+      "expected_output": "Runs /assess --mechanical-only, executing only scripted checks without LLM review agents.",
+      "files": [],
+      "assertions": [
+        "Uses --mechanical-only flag",
+        "Executes file_exists, contains, regex, command checks",
+        "Does NOT spawn LLM review agents",
+        "Reports results with severity levels (error, warning, info)",
+        "Completes faster than full assessment due to skipping LLM"
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "assess-specific-skill",
+      "prompt": "Assess this project against the skill-repo skill only, not all skills.",
+      "expected_output": "Runs /assess skill-repo, limiting checkpoints to the named skill.",
+      "files": [],
+      "assertions": [
+        "Passes skill name as argument to limit scope",
+        "Only runs checkpoints from the specified skill",
+        "Does not run checkpoints from other skills",
+        "Produces report scoped to the named skill"
+      ]
+    }
+  ]
+}

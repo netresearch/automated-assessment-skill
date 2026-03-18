@@ -1,0 +1,34 @@
+{
+  "skill_name": "add-checkpoints",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "add-checkpoints-to-skill",
+      "prompt": "Add checkpoints to the go-development skill. Analyze its SKILL.md and generate appropriate checkpoint YAML.",
+      "expected_output": "Analyzes the skill's SKILL.md, extracts verifiable requirements, generates checkpoints.yaml with mechanical checks and LLM reviews.",
+      "files": [],
+      "assertions": [
+        "Reads the target skill's SKILL.md to extract requirements",
+        "Generates a checkpoints.yaml file following the schema",
+        "Includes mechanical checks (file_exists, contains, regex) for verifiable rules",
+        "Includes LLM review checkpoints for subjective requirements",
+        "Adds appropriate preconditions (e.g., file_exists: go.mod for Go skills)",
+        "Assigns severity levels based on keyword strength (must/should/consider)"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "evaluate-checkpoint-suitability",
+      "prompt": "Evaluate if this skill is suitable for checkpoints. It provides conceptual guidance about agile retrospectives with no file outputs.",
+      "expected_output": "Reports that the skill is NOT suitable for checkpoints because it lacks verifiable file outputs or structural requirements.",
+      "files": [],
+      "assertions": [
+        "Evaluates against suitability criteria from the skill",
+        "Identifies lack of file structure requirements",
+        "Identifies lack of verifiable content patterns",
+        "Reports NOT suitable with clear reasoning",
+        "Does not generate checkpoints for unsuitable skills"
+      ]
+    }
+  ]
+}
