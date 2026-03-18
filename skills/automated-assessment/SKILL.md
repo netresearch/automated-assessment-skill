@@ -1,6 +1,6 @@
 ---
 name: automated-assessment
-description: "ALWAYS use for ANY project compliance assessment — running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
+description: "Use when working with ANY project compliance assessment — running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
 license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
 compatibility: "Requires bash, jq, gh CLI."
 metadata:
