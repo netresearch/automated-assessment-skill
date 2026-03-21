@@ -5,7 +5,7 @@ license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
 compatibility: "Requires bash, jq, gh CLI."
 metadata:
   author: Netresearch DTT GmbH
-  version: "2.4.1"
+  version: "2.5.0"
   repository: https://github.com/netresearch/automated-assessment-skill
 allowed-tools: Bash(bash:*) Bash(jq:*) Bash(gh:*) Read Glob Grep Agent
 ---
