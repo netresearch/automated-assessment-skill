@@ -41,6 +41,22 @@ Each checkpoint file can declare `preconditions:` — conditions that must ALL p
 /assess --mechanical-only        # Skip LLM reviews
 ```
 
+## Commands
+
+```bash
+# Run mechanical checkpoint verification against a project
+bash skills/automated-assessment/scripts/run-checkpoints.sh <checkpoints.yaml> <project-root>
+
+# Run the full assessment via Claude Code slash command
+/assess                          # All matching skills
+/assess skill-repo typo3-testing # Specific skills only
+/assess --force                  # Ignore preconditions
+/assess --mechanical-only        # Skip LLM reviews
+
+# Verify agent harness compliance
+bash scripts/verify-harness.sh --format=text --status
+```
+
 ## Conventions
 
 - **Licensing**: MIT (code) + CC-BY-SA-4.0 (content)
