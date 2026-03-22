@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
   ci:
-    uses: netresearch/skill-repo-skill/.github/workflows/ci-python.yml@84dab32b407a17aa7826e30b86b3e9a503c75e32 # main
+    uses: netresearch/skill-repo-skill/.github/workflows/ci-python.yml@main
     permissions:
       contents: read
     with:
