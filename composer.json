@@ -25,6 +25,7 @@
     },
     "support": {
         "issues": "https://github.com/netresearch/automated-assessment-skill/issues",
-        "source": "https://github.com/netresearch/automated-assessment-skill"
+        "source": "https://github.com/netresearch/automated-assessment-skill",
+        "security": "https://github.com/netresearch/automated-assessment-skill/security"
     }
 }
