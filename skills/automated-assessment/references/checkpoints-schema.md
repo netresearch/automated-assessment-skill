@@ -151,6 +151,7 @@ AG-01  = agents checkpoint 1
 | `contains` | File contains literal string | `target`, `pattern` |
 | `not_contains` | File does NOT contain string | `target`, `pattern` |
 | `regex` | File matches regex pattern | `target`, `pattern` |
+| `regex_not` | File does NOT match regex pattern | `target`, `pattern` |
 | `json_path` | JSON path exists and is truthy | `target`, `pattern` (jq path) |
 | `yaml_path` | YAML path exists | `target`, `pattern` (yq path) |
 | `gh_api` | GitHub API check | `endpoint`, `expect_contains` or `json_path` |
@@ -189,6 +190,19 @@ Extended regex pattern. Target supports glob patterns:
   target: .github/workflows/*.yml
   pattern: "uses: [^@]+@[a-f0-9]{40}"
   severity: error
+```
+
+#### `regex_not`
+
+Inverse of `regex`. Passes if the pattern is NOT found in any matching file. Target supports glob patterns:
+
+```yaml
+- id: ER-25
+  type: regex_not
+  target: .github/workflows/*.yml
+  pattern: "uses: [^@]+@v[0-9]"
+  severity: error
+  desc: "Actions must not use mutable tag references"
 ```
 
 #### `json_path`
