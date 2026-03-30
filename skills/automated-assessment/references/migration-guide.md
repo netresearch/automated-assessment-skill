@@ -81,6 +81,8 @@ Use a consistent prefix based on your skill name:
 | php-modernization | PM | PM-01, PM-02 |
 | security-audit | SA | SA-01, SA-02 |
 | typo3-docs | TD | TD-01, TD-02 |
+| dependency-compatibility | DC | DC-01, DC-02 |
+| pre-push | PP | PP-01, PP-02 |
 
 ### Step 4: Convert Requirements to Checkpoints
 
@@ -277,4 +279,4 @@ jq -e '.your.path' /path/to/file.json
 
 ### "LLM review domain not recognized"
 
-Valid domains: `repo-health`, `security`, `code-quality`, `documentation`
+Valid domains: `repo-health`, `security`, `code-quality`, `documentation`, `dependency-compatibility`, `pre-push`

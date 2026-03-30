@@ -225,6 +225,8 @@ If ANY validation fails, retry that component.
 GH-01  = github-project checkpoint 1
 ER-01  = enterprise-readiness checkpoint 1
 TC-01  = typo3-conformance checkpoint 1
+DC-01  = dependency-compatibility checkpoint 1
+PP-01  = pre-push checkpoint 1
 ```
 
 ## Migration Path

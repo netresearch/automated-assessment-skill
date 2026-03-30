@@ -25,6 +25,9 @@ Systematic compliance assessment for projects against checkpoint-enabled skills.
 /assess skill-repo --autofix        # Fix specific skill's issues only
 /assess --review                     # Categorize failures as skill improvements
 /assess --autoimprove                # Fix + propose skill improvements
+/assess dependency-compatibility     # Run dependency compatibility checks
+/assess --pre-push                   # Run pre-push validation gate
+/assess --check-coverage             # Verify skills have adequate checkpoints
 ```
 
 ### Options
@@ -39,6 +42,9 @@ Systematic compliance assessment for projects against checkpoint-enabled skills.
 | `--autoimprove` | Fix what's possible, propose improvements for the rest |
 | `--create-issues` | With --autoimprove, create GitHub issues in skill repos |
 | `--json` | Output raw JSON instead of formatted report |
+| `--pre-push` | Run pre-push validation gate (PHPStan, tests, CGL, Rector) |
+| `--check-coverage` | Verify skills have adequate checkpoint coverage |
+| `dependency-compatibility` | Run dependency compatibility assessment |
 
 ### Steps
 
@@ -63,6 +69,8 @@ Systematic compliance assessment for projects against checkpoint-enabled skills.
 | `docker` | Dockerfile, compose, container patterns |
 | `ddev` | DDEV configuration, services, commands |
 | `upgrade` | TYPO3 version upgrades, deprecations |
+| `dependency-compatibility` | Multi-version dependency API compat, mocks, PHPStan ignores |
+| `pre-push` | Local CI validation gate (PHPStan, tests, CGL, Rector) |
 
 ## Autofix Workflow
 
@@ -74,6 +82,41 @@ With `--autofix`: run checks, invoke responsible skill for failures (e.g., `/age
 
 `--autoimprove` runs autofix first, then analyzes remaining failures and proposes checkpoint changes. Use `--create-issues` to file issues in skill repos.
 
+## Dependency Compatibility Assessment
+
+Automatically triggered when `composer.json` constraints span multiple major versions (e.g., `^2.0 || ^3.0`). Verifies:
+
+1. All declared major versions can be installed
+2. PHPStan passes against each version
+3. Unit tests pass against each version
+4. API calls are compatible across all versions (method existence, signatures, return types)
+
+See `references/dependency-compatibility.md` for full workflow.
+
+## Checkpoint Coverage Validation
+
+The `--check-coverage` flag verifies that skills have adequate checkpoints for the failure classes they should catch:
+
+- **API compatibility** -- methods exist across all supported dependency versions
+- **Test mock validity** -- mocked methods exist on real interfaces
+- **PHPStan ignore validity** -- ignore tags are specific and necessary
+- **Test assertion specificity** -- assertions catch real regressions
+
+See `references/checkpoint-coverage-requirements.md` for the coverage matrix.
+
+## Pre-Push Validation Gate
+
+The `--pre-push` flag runs all local CI checks and verifies they pass:
+
+| Tool | Checkpoint | Severity |
+|------|-----------|----------|
+| PHPStan | PP-01 | error |
+| PHPUnit | PP-02 | error |
+| PHP-CS-Fixer | PP-03 | warning |
+| Rector | PP-04 | warning |
+
+Only tools that are installed (`vendor/bin/*` exists) are checked. Missing tools are skipped, not failed.
+
 ## Severity Levels
 
 `error` = blocks release, `warning` = recommendation, `info` = optional.
@@ -83,3 +126,5 @@ With `--autofix`: run checks, invoke responsible skill for failures (e.g., `/age
 - `references/checkpoints-schema.md` -- checkpoint YAML schema
 - `references/checkpoint-workflow.md` -- discovery, agents, validation
 - `references/migration-guide.md` -- adding checkpoints to skills
+- `references/dependency-compatibility.md` -- multi-version dependency assessment
+- `references/checkpoint-coverage-requirements.md` -- skill checkpoint coverage matrix

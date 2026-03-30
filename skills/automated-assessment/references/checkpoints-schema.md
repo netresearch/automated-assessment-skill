@@ -266,6 +266,8 @@ Related checkpoints are grouped into domains for efficient LLM batching:
 | `security` | SLSA, OpenSSF, SBOM, vulnerabilities |
 | `code-quality` | PHPStan, tests, PHP patterns |
 | `documentation` | RST, rendering, docs.typo3.org |
+| `dependency-compatibility` | Multi-version API compat, mock validity, PHPStan ignores |
+| `pre-push` | Local CI validation (PHPStan, tests, CGL, Rector) |
 
 ## Severity Levels
 
