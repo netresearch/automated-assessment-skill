@@ -333,17 +333,12 @@ run_checkpoint() {
 
             if $found; then
                 status="fail"
+            elif [[ ${#files[@]} -eq 0 || -z "$checked_file" ]]; then
+                status="pass"
+                evidence="No target files found or no files matched pattern: $target (OK for regex_not)"
             else
-                if [[ ${#files[@]} -eq 0 ]]; then
-                    status="pass"
-                    evidence="No files match pattern: $target (OK for regex_not)"
-                elif [[ -z "$checked_file" ]]; then
-                    status="pass"
-                    evidence="Target file not found (OK for regex_not): $target"
-                else
-                    status="pass"
-                    evidence="Pattern correctly absent from matched files"
-                fi
+                status="pass"
+                evidence="Pattern correctly absent from matched files"
             fi
             ;;
         json_path)
