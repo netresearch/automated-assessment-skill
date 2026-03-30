@@ -151,7 +151,7 @@ AG-01  = agents checkpoint 1
 | `contains` | File contains literal string | `target`, `pattern` |
 | `not_contains` | File does NOT contain string | `target`, `pattern` |
 | `regex` | File matches regex pattern | `target`, `pattern` |
-| `regex_not` | File does NOT match regex pattern | `target`, `pattern` |
+| `regex_not` | Pattern is absent from matched file(s) | `target`, `pattern` |
 | `json_path` | JSON path exists and is truthy | `target`, `pattern` (jq path) |
 | `yaml_path` | YAML path exists | `target`, `pattern` (yq path) |
 | `gh_api` | GitHub API check | `endpoint`, `expect_contains` or `json_path` |

@@ -338,7 +338,7 @@ run_checkpoint() {
                 evidence="No target files found or no files matched pattern: $target (OK for regex_not)"
             else
                 status="pass"
-                evidence="Pattern correctly absent from matched files"
+                evidence="Pattern correctly absent from ${#files[@]} matched file(s) for target: $target"
             fi
             ;;
         json_path)
