@@ -164,13 +164,13 @@ Before any `git push`, the following must have been run and passed:
 ```yaml
 - id: PP-01
   type: command
-  pattern: "test -f vendor/bin/phpstan && vendor/bin/phpstan analyse --no-progress"
+  pattern: "test ! -f vendor/bin/phpstan || vendor/bin/phpstan analyse --no-progress --error-format=raw 2>&1 | tail -1 | grep -q 'No errors'"
   severity: error
   desc: "PHPStan analysis must pass locally"
 
 - id: PP-02
   type: command
-  pattern: "test -f vendor/bin/phpunit && vendor/bin/phpunit --no-coverage"
+  pattern: "test ! -f vendor/bin/phpunit || vendor/bin/phpunit --no-coverage 2>&1 | tail -1 | grep -qE '(OK|No tests)'"
   severity: error
   desc: "Unit tests must pass locally"
 

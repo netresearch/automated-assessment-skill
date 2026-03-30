@@ -81,7 +81,7 @@ Triggered when `composer.json` spans multiple major versions (e.g., `^2.0 || ^3.
 
 ## Pre-Push Validation Gate
 
-Runs local CI checks for installed tools only (missing tools skipped):
+Only tools that are installed (`vendor/bin/*` exists) are checked. Missing tools are treated as pass (not failed).
 
 | Tool | ID | Severity |
 |------|----|----------|

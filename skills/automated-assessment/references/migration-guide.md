@@ -279,4 +279,4 @@ jq -e '.your.path' /path/to/file.json
 
 ### "LLM review domain not recognized"
 
-Valid domains: `repo-health`, `security`, `code-quality`, `documentation`, `dependency-compatibility`, `pre-push`
+Valid LLM review domains currently supported for automated assessment: `repo-health`, `security`, `code-quality`, `documentation`, `dependency-compatibility`, `pre-push`. Other domain labels mentioned in SKILL.md or the main README (such as `git-workflow`, `docker`, `ddev`, or `upgrade`) refer to broader skill concepts and are not LLM review domains.
