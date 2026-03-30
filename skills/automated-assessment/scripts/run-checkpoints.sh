@@ -303,6 +303,44 @@ run_checkpoint() {
                 fi
             fi
             ;;
+        regex_not)
+            # Inverse of regex: pass if pattern is NOT found in any matching file
+            local files=()
+            if [[ "$target" == *"{"*"}"* ]]; then
+                # Brace expansion
+                eval "files=($target)"
+            elif [[ "$target" == *"*"* ]]; then
+                # Glob pattern - expand it
+                shopt -s nullglob globstar
+                files=($target)
+                shopt -u nullglob globstar
+            else
+                files=("$target")
+            fi
+
+            local found=false
+            local checked_file=""
+            for f in "${files[@]}"; do
+                if [[ -f "$f" ]]; then
+                    checked_file="$f"
+                    if grep -q${GREP_MODE#-} "$pattern" "$f" 2>/dev/null; then
+                        found=true
+                        evidence="Pattern found in $f (should be absent)"
+                        break
+                    fi
+                fi
+            done
+
+            if $found; then
+                status="fail"
+            elif [[ ${#files[@]} -eq 0 || -z "$checked_file" ]]; then
+                status="pass"
+                evidence="No target files found or no files matched pattern: $target (OK for regex_not)"
+            else
+                status="pass"
+                evidence="Pattern correctly absent from ${#files[@]} matched file(s) for target: $target"
+            fi
+            ;;
         json_path)
             if [[ -f "$target" ]] && jq -e "$pattern" "$target" > /dev/null 2>&1; then
                 status="pass"
