@@ -267,7 +267,7 @@ Related checkpoints are grouped into domains for efficient LLM batching:
 | `code-quality` | PHPStan, tests, PHP patterns |
 | `documentation` | RST, rendering, docs.typo3.org |
 | `dependency-compatibility` | Multi-version API compat, mock validity, PHPStan ignores |
-| `pre-push` | Local CI validation (PHPStan, tests, CGL, Rector) |
+| `pre-push` | Local CI validation (PHPStan, tests, PHP-CS-Fixer, Rector) |
 
 ## Severity Levels
 

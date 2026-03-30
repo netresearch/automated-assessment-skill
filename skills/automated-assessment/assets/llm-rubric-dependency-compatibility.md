@@ -129,7 +129,7 @@ Reference specific sections using markdown anchors (e.g., `assets/llm-rubric-dep
 
 ### Checkpoint: Verify Local CI Checks Were Run
 
-**Requirement:** All local CI checks (PHPStan, PHPUnit, CGL, Rector) must have been run and passing before code is pushed.
+**Requirement:** All local CI checks (PHPStan, PHPUnit, PHP-CS-Fixer, Rector) must have been run and passing before code is pushed.
 
 **Verification Steps:**
 

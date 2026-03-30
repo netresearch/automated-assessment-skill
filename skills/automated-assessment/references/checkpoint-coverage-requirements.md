@@ -156,7 +156,7 @@ Before any `git push`, the following must have been run and passed:
 |------|---------|-----------------|
 | PHPStan | `vendor/bin/phpstan analyse` | Type errors, missing methods, wrong args |
 | PHPUnit | `vendor/bin/phpunit` | Broken tests, regressions |
-| PHP-CS-Fixer / CGL | `vendor/bin/php-cs-fixer fix --dry-run` | Code style violations |
+| PHP-CS-Fixer | `vendor/bin/php-cs-fixer fix --dry-run` | Code style violations |
 | Rector | `vendor/bin/rector process --dry-run` | Outdated patterns, needed migrations |
 
 **Checkpoint template:**
@@ -164,25 +164,25 @@ Before any `git push`, the following must have been run and passed:
 ```yaml
 - id: PP-01
   type: command
-  pattern: "test -f vendor/bin/phpstan && vendor/bin/phpstan analyse --no-progress --error-format=raw 2>&1 | tail -1 | grep -q 'No errors'"
+  pattern: "test -f vendor/bin/phpstan && vendor/bin/phpstan analyse --no-progress"
   severity: error
   desc: "PHPStan analysis must pass locally"
 
 - id: PP-02
   type: command
-  pattern: "test -f vendor/bin/phpunit && vendor/bin/phpunit --no-coverage 2>&1 | tail -1 | grep -qE '(OK|No tests)'"
+  pattern: "test -f vendor/bin/phpunit && vendor/bin/phpunit --no-coverage"
   severity: error
   desc: "Unit tests must pass locally"
 
 - id: PP-03
   type: command
-  pattern: "test ! -f vendor/bin/php-cs-fixer || vendor/bin/php-cs-fixer fix --dry-run --diff 2>&1 | grep -q 'Fixed 0'"
+  pattern: "test ! -f vendor/bin/php-cs-fixer || vendor/bin/php-cs-fixer fix --dry-run --diff"
   severity: warning
   desc: "Code style must be clean (PHP-CS-Fixer)"
 
 - id: PP-04
   type: command
-  pattern: "test ! -f vendor/bin/rector || vendor/bin/rector process --dry-run 2>&1 | grep -q 'Rector is done'"
+  pattern: "test ! -f vendor/bin/rector || vendor/bin/rector process --dry-run"
   severity: warning
   desc: "Rector should report no pending changes"
 ```
