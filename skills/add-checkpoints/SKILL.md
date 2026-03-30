@@ -4,7 +4,7 @@ description: "Use when adding assessment checkpoints to a skill, evaluating chec
 license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
 metadata:
   author: Netresearch DTT GmbH
-  version: "2.5.2"
+  version: "2.6.0"
   repository: https://github.com/netresearch/automated-assessment-skill
 ---
 
