@@ -12,40 +12,43 @@ allowed-tools: Bash(bash:*) Bash(jq:*) Bash(gh:*) Read Glob Grep Agent
 
 # Automated Assessment Skill
 
-Systematic compliance assessment for projects against checkpoint-enabled skills.
+Systematic compliance assessment against checkpoint-enabled skills.
 
-## Running the Assessment
+## Usage
 
 ```
-/assess                              # Assess against all matching skills
-/assess skill-repo typo3-testing     # Assess against specific skills only
-/assess --force                      # Run all skills, ignore preconditions
-/assess --mechanical-only            # Skip LLM reviews, only scripted checks
-/assess --autofix                    # Find and fix issues automatically
-/assess skill-repo --autofix        # Fix specific skill's issues only
-/assess --review                     # Categorize failures as skill improvements
-/assess --autoimprove                # Fix + propose skill improvements
+/assess                              # All matching skills
+/assess skill-repo typo3-testing     # Specific skills only
+/assess --force                      # Ignore preconditions
+/assess --mechanical-only            # Scripted checks only
+/assess --autofix                    # Fix issues automatically
+/assess --review                     # Categorize failures
+/assess --autoimprove                # Fix + propose improvements
+/assess dependency-compatibility     # Dependency compat checks
+/assess --pre-push                   # Pre-push validation gate
+/assess --check-coverage             # Verify checkpoint coverage
 ```
 
 ### Options
 
-| Flag | Effect |
-|------|--------|
-| `<skill-names>` | Only run checkpoints for named skills |
-| `--force` | Skip precondition checks, run all skills |
-| `--mechanical-only` | Skip LLM reviews, only run scripted checks |
-| `--autofix` | Fix failures by invoking the responsible skill, then re-verify |
-| `--review` | Categorize failures and suggest skill improvements |
-| `--autoimprove` | Fix what's possible, propose improvements for the rest |
-| `--create-issues` | With --autoimprove, create GitHub issues in skill repos |
-| `--json` | Output raw JSON instead of formatted report |
+| Option | Effect |
+|--------|--------|
+| `<skill-names>` | Run checkpoints for named skills only (also accepts domain names like `dependency-compatibility`) |
+| `--force` | Skip precondition checks |
+| `--mechanical-only` | Skip LLM reviews |
+| `--autofix` | Fix failures via responsible skill, re-verify |
+| `--review` | Categorize failures, suggest skill improvements |
+| `--autoimprove` | Fix + propose checkpoint changes; add `--create-issues` to file issues |
+| `--json` | Raw JSON output |
+| `--pre-push` | Run pre-push gate (PHPStan, tests, PHP-CS-Fixer, Rector) |
+| `--check-coverage` | Verify adequate checkpoint coverage |
 
 ### Steps
 
-1. Discover matching skills, evaluate preconditions
-2. Run scripted checks (mechanical checkpoints)
+1. Discover skills, evaluate preconditions
+2. Run mechanical checkpoints
 3. Group LLM checkpoints by domain, spawn parallel agents
-4. Collect results and generate compliance report
+4. Collect results, generate report
 
 ## Checkpoint Types
 
@@ -56,30 +59,41 @@ Systematic compliance assessment for projects against checkpoint-enabled skills.
 | Domain | Focus |
 |--------|-------|
 | `repo-health` | README, badges, branding, AGENTS.md |
-| `security` | SLSA, OpenSSF, SBOM, vulnerabilities |
-| `code-quality` | PHPStan, tests, PHP 8.x patterns |
-| `documentation` | RST, rendering, docs.typo3.org |
-| `git-workflow` | Branching, commits, conventional commits |
-| `docker` | Dockerfile, compose, container patterns |
-| `ddev` | DDEV configuration, services, commands |
-| `upgrade` | TYPO3 version upgrades, deprecations |
+| `security` | SLSA, OpenSSF, SBOM |
+| `code-quality` | PHPStan, tests, PHP 8.x |
+| `documentation` | RST, docs.typo3.org |
+| `git-workflow` | Branching, conventional commits |
+| `docker` | Dockerfile, compose |
+| `ddev` | DDEV config, services |
+| `upgrade` | TYPO3 version upgrades |
+| `dependency-compatibility` | Multi-version API compat, mocks, PHPStan ignores |
+| `pre-push` | Local CI gate (PHPStan, tests, PHP-CS-Fixer, Rector) |
 
-## Autofix Workflow
+## Autofix & Review
 
-With `--autofix`: run checks, invoke responsible skill for failures (e.g., `/agent-rules`), re-verify. Statuses: `auto-fixed` (now passes), `needs-review` (LLM item), `unfixable` (still fails).
+`--autofix` runs checks, invokes responsible skill for failures, re-verifies. Statuses: `auto-fixed`, `needs-review`, `unfixable`.
 
-## Review & Improvement
+`--review`/`--autoimprove` create feedback loops. Categories: `fixable`, `skill-gap`, `checkpoint-issue`.
 
-`--review` and `--autoimprove` create a feedback loop from assessment back into skills. Categories: `fixable` (skill can fix), `skill-gap` (propose SKILL.md update), `checkpoint-issue` (miscalibrated check).
+## Dependency Compatibility
 
-`--autoimprove` runs autofix first, then analyzes remaining failures and proposes checkpoint changes. Use `--create-issues` to file issues in skill repos.
+Triggered when `composer.json` spans multiple major versions (e.g., `^2.0 || ^3.0`). Verifies all versions install, PHPStan/tests pass per version, and API calls are compatible. See `references/dependency-compatibility.md`.
 
-## Severity Levels
+## Pre-Push Validation Gate
+
+Only installed tools (`vendor/bin/*`) are checked. Missing tools pass (not failed).
+
+| Tool | ID | Severity |
+|------|----|----------|
+| PHPStan | PP-01 | error |
+| PHPUnit | PP-02 | error |
+| PHP-CS-Fixer | PP-03 | warning |
+| Rector | PP-04 | warning |
+
+## Checkpoint Coverage
+
+`--check-coverage` verifies skills cover: API compatibility, test mock validity, PHPStan ignore validity, assertion specificity. See `references/checkpoint-coverage-requirements.md`.
+
+## Severity
 
 `error` = blocks release, `warning` = recommendation, `info` = optional.
-
-## References
-
-- `references/checkpoints-schema.md` -- checkpoint YAML schema
-- `references/checkpoint-workflow.md` -- discovery, agents, validation
-- `references/migration-guide.md` -- adding checkpoints to skills

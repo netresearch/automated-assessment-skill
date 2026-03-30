@@ -258,7 +258,9 @@ Run arbitrary command, check exit code:
 
 ### Domain Groups
 
-Related checkpoints are grouped into domains for efficient LLM batching:
+Related checkpoints are grouped into domains for efficient LLM batching.
+
+These are the currently supported LLM review domains used for automated assessment. Other domain labels mentioned in SKILL.md or the main README (such as `git-workflow`, `docker`, `ddev`, or `upgrade`) refer to broader skill concepts and are not LLM review domains.
 
 | Domain | Focus Areas |
 |--------|-------------|
@@ -266,6 +268,8 @@ Related checkpoints are grouped into domains for efficient LLM batching:
 | `security` | SLSA, OpenSSF, SBOM, vulnerabilities |
 | `code-quality` | PHPStan, tests, PHP patterns |
 | `documentation` | RST, rendering, docs.typo3.org |
+| `dependency-compatibility` | Multi-version API compat, mock validity, PHPStan ignores |
+| `pre-push` | Local CI validation (PHPStan, tests, PHP-CS-Fixer, Rector) |
 
 ## Severity Levels
 
