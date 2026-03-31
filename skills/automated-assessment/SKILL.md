@@ -1,6 +1,6 @@
 ---
 name: automated-assessment
-description: "Use when working with ANY project compliance assessment, quality enhancement, or test suite improvement. MUST be triggered BEFORE manual quality work begins (enhance tests, improve coverage, increase mutation score, enterprise grade, A+ testing, strengthen test suite). Also use for: running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
+description: "Use when working with ANY project compliance assessment, quality enhancement, or test suite improvement. MUST be triggered BEFORE manual quality work begins (e.g., to enhance tests, improve coverage, increase mutation score, or strengthen test suite). Also use for: running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
 license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
 compatibility: "Requires bash, jq, gh CLI."
 metadata:
@@ -50,66 +50,31 @@ Systematic compliance assessment against checkpoint-enabled skills.
 3. Group LLM checkpoints by domain, spawn parallel agents
 4. Collect results, generate report
 
-## When to Trigger This Skill
+## Assessment-First Rule
 
-**CRITICAL**: This skill must be invoked BEFORE starting manual quality enhancement work. When a user asks to:
-- "enhance the test suite" / "improve tests" / "strengthen tests"
-- "increase coverage" / "improve mutation score"
-- "enterprise grade" / "A+ testing" / "production ready"
-- "add architecture tests" / "improve static analysis"
-- "upgrade PHPStan level" / "fix all findings"
+**CRITICAL**: Run `/assess` BEFORE manual quality work (enhance tests, improve coverage, strengthen suite, upgrade PHPStan, etc.). Assessment generates a structured gap analysis, preventing wasted iterative discovery.
 
-**Always run assessment first** to generate a structured gap analysis. This prevents wasted effort discovering issues iteratively that checkpoints would have caught automatically.
-
-### Assessment-First Workflow
-1. Run `/assess` against the project with relevant skills
-2. Review the gap report — this becomes the task list
-3. Fix issues in priority order (errors before warnings)
-4. Re-run `/assess` to verify all checkpoints pass
+### Workflow
+1. `/assess` with relevant skills
+2. Review gap report — this becomes the task list
+3. Fix in priority order (errors before warnings; use `--autofix` for automated resolution)
+4. Re-run `/assess` to verify
 
 ## Checkpoint Types
 
 **Mechanical:** `file_exists`, `file_not_exists`, `contains`, `not_contains`, `regex`, `json_path`, `gh_api`, `command`. **LLM:** `llm_review` (grouped by domain). See `references/checkpoints-schema.md`.
 
-## Domain Groups
+## Domains
 
-| Domain | Focus |
-|--------|-------|
-| `repo-health` | README, badges, branding, AGENTS.md |
-| `security` | SLSA, OpenSSF, SBOM |
-| `code-quality` | PHPStan, tests, PHP 8.x |
-| `documentation` | RST, docs.typo3.org |
-| `git-workflow` | Branching, conventional commits |
-| `docker` | Dockerfile, compose |
-| `ddev` | DDEV config, services |
-| `upgrade` | TYPO3 version upgrades |
-| `dependency-compatibility` | Multi-version API compat, mocks, PHPStan ignores |
-| `pre-push` | Local CI gate (PHPStan, tests, PHP-CS-Fixer, Rector) |
+`repo-health` `security` `code-quality` `documentation` `git-workflow` `docker` `ddev` `upgrade` `dependency-compatibility` `pre-push`
 
 ## Autofix & Review
 
-`--autofix` runs checks, invokes responsible skill for failures, re-verifies. Statuses: `auto-fixed`, `needs-review`, `unfixable`.
+`--autofix` invokes responsible skill for failures, re-verifies. Statuses: `auto-fixed`, `needs-review`, `unfixable`. `--review`/`--autoimprove` create feedback loops.
 
-`--review`/`--autoimprove` create feedback loops. Categories: `fixable`, `skill-gap`, `checkpoint-issue`.
+## Pre-Push Gate
 
-## Dependency Compatibility
-
-Triggered when `composer.json` spans multiple major versions (e.g., `^2.0 || ^3.0`). Verifies all versions install, PHPStan/tests pass per version, and API calls are compatible. See `references/dependency-compatibility.md`.
-
-## Pre-Push Validation Gate
-
-Only installed tools (`vendor/bin/*`) are checked. Missing tools pass (not failed).
-
-| Tool | ID | Severity |
-|------|----|----------|
-| PHPStan | PP-01 | error |
-| PHPUnit | PP-02 | error |
-| PHP-CS-Fixer | PP-03 | warning |
-| Rector | PP-04 | warning |
-
-## Checkpoint Coverage
-
-`--check-coverage` verifies skills cover: API compatibility, test mock validity, PHPStan ignore validity, assertion specificity. See `references/checkpoint-coverage-requirements.md`.
+Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-01 (PHPStan), PP-02 (PHPUnit), PP-03 (PHP-CS-Fixer), PP-04 (Rector).
 
 ## Severity
 
