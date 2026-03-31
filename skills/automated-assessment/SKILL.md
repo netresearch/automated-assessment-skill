@@ -1,6 +1,6 @@
 ---
 name: automated-assessment
-description: "Use when working with ANY project compliance assessment — running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
+description: "Use when working with ANY project compliance assessment, quality enhancement, or test suite improvement. MUST be triggered BEFORE manual quality work begins (enhance tests, improve coverage, increase mutation score, enterprise grade, A+ testing, strengthen test suite). Also use for: running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
 license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
 compatibility: "Requires bash, jq, gh CLI."
 metadata:
@@ -49,6 +49,23 @@ Systematic compliance assessment against checkpoint-enabled skills.
 2. Run mechanical checkpoints
 3. Group LLM checkpoints by domain, spawn parallel agents
 4. Collect results, generate report
+
+## When to Trigger This Skill
+
+**CRITICAL**: This skill must be invoked BEFORE starting manual quality enhancement work. When a user asks to:
+- "enhance the test suite" / "improve tests" / "strengthen tests"
+- "increase coverage" / "improve mutation score"
+- "enterprise grade" / "A+ testing" / "production ready"
+- "add architecture tests" / "improve static analysis"
+- "upgrade PHPStan level" / "fix all findings"
+
+**Always run assessment first** to generate a structured gap analysis. This prevents wasted effort discovering issues iteratively that checkpoints would have caught automatically.
+
+### Assessment-First Workflow
+1. Run `/assess` against the project with relevant skills
+2. Review the gap report — this becomes the task list
+3. Fix issues in priority order (errors before warnings)
+4. Re-run `/assess` to verify all checkpoints pass
 
 ## Checkpoint Types
 
