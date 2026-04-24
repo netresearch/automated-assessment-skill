@@ -166,13 +166,25 @@ SKIP_COUNT=0
 SKILL_ID=""
 SCHEMA_VERSION=1
 
-# Auto-exclude well-known transient/dependency directories from glob expansion.
-# Without this, content checks like SA-* `**/*.php` ingest generated DI caches
-# (var/cache/), built docs (Documentation-GENERATED-temp/), vendored deps
-# (vendor/, node_modules/, .Build/), version control internals (.git/), and
-# OS metadata (*.lock-by-default not excluded — caller checkpoints opt in).
-# Override with EXCLUDE_PATHS env var (newline-separated literal directory
-# names; matched against any path segment).
+# Auto-exclude well-known transient/dependency directories from glob expansion
+# in *content checks* (regex, regex_not, contains, not_contains). Without this,
+# content checks like SA-* `**/*.php` ingest generated DI caches (var/cache/),
+# built docs (Documentation-GENERATED-temp/), vendored deps (vendor/,
+# node_modules/, .Build/), version control internals (.git/), etc.
+#
+# `file_exists` glob targets are NOT filtered — some checkpoints intentionally
+# count files in vendor/ or .Build/ for sanity checks.
+#
+# Behaviour:
+#   EXCLUDE_PATHS unset      → defaults applied (DEFAULT_EXCLUDE_DIRS)
+#   EXCLUDE_PATHS_ADD=...    → newline-separated dirs added on top of defaults
+#   EXCLUDE_PATHS=...        → REPLACES the defaults entirely (use this when
+#                              a skill needs to scan vendor/ or .Build/ on
+#                              purpose, while still excluding only the dirs
+#                              listed in EXCLUDE_PATHS)
+#
+# Matching is by literal path segment (not glob), so a directory name with
+# shell metacharacters (* ? [ ]) won't be misinterpreted.
 DEFAULT_EXCLUDE_DIRS=(
     .git .svn .hg
     vendor node_modules
@@ -184,22 +196,63 @@ DEFAULT_EXCLUDE_DIRS=(
     __pycache__ .pytest_cache .tox
     target dist out
 )
-EXCLUDE_DIRS=("${DEFAULT_EXCLUDE_DIRS[@]}")
-if [[ -n "${EXCLUDE_PATHS:-}" ]]; then
+
+# Normalise an exclude entry: strip CR/whitespace.
+_normalize_exclude_dir() {
+    local dir="$1"
+    dir="${dir//$'\r'/}"
+    # Trim leading/trailing whitespace
+    dir="${dir#"${dir%%[![:space:]]*}"}"
+    dir="${dir%"${dir##*[![:space:]]}"}"
+    printf '%s' "$dir"
+}
+
+if [[ -n "${EXCLUDE_PATHS+x}" ]]; then
+    EXCLUDE_DIRS=()
     while IFS= read -r d; do
+        d="$(_normalize_exclude_dir "$d")"
         [[ -n "$d" ]] && EXCLUDE_DIRS+=("$d")
     done <<<"$EXCLUDE_PATHS"
+else
+    EXCLUDE_DIRS=("${DEFAULT_EXCLUDE_DIRS[@]}")
 fi
+if [[ -n "${EXCLUDE_PATHS_ADD:-}" ]]; then
+    while IFS= read -r d; do
+        d="$(_normalize_exclude_dir "$d")"
+        [[ -n "$d" ]] && EXCLUDE_DIRS+=("$d")
+    done <<<"$EXCLUDE_PATHS_ADD"
+fi
+
+# Match a path's literal segments against a needle's literal segments
+# (sliding window). Avoids bash `case` glob interpretation, so directory
+# names containing shell metacharacters (* ? [ ]) are matched literally.
+_path_contains_segments() {
+    local path="$1"
+    local needle="$2"
+    local -a path_parts needle_parts
+    local i j
+
+    IFS=/ read -r -a path_parts <<<"$path"
+    IFS=/ read -r -a needle_parts <<<"$needle"
+
+    [[ ${#needle_parts[@]} -eq 0 ]] && return 1
+    [[ ${#needle_parts[@]} -gt ${#path_parts[@]} ]] && return 1
+
+    for ((i = 0; i <= ${#path_parts[@]} - ${#needle_parts[@]}; i++)); do
+        for ((j = 0; j < ${#needle_parts[@]}; j++)); do
+            [[ "${path_parts[i + j]}" == "${needle_parts[j]}" ]] || break
+        done
+        [[ $j -eq ${#needle_parts[@]} ]] && return 0
+    done
+    return 1
+}
 
 # is_excluded "path" → returns 0 (true) if path traverses any excluded dir.
 is_excluded() {
     local path="$1"
     local dir
     for dir in "${EXCLUDE_DIRS[@]}"; do
-        # Match leading segment, mid-segment (/dir/), or terminal (/dir)
-        case "/$path" in
-            "/$dir"|"/$dir/"*|*"/$dir"|*"/$dir/"*) return 0 ;;
-        esac
+        _path_contains_segments "$path" "$dir" && return 0
     done
     return 1
 }
