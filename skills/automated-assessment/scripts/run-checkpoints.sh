@@ -374,7 +374,7 @@ run_checkpoint() {
                     # metacharacters in the pattern (e.g. `..` in `../`)
                     # don't produce false positives by matching arbitrary
                     # characters. Use `regex` for regex matching.
-                    if grep -qF "$pattern" "$f" 2>/dev/null; then
+                    if grep -qF -- "$pattern" "$f" 2>/dev/null; then
                         found=true
                         break
                     fi
@@ -431,7 +431,7 @@ run_checkpoint() {
                 # `not_contains` is documented as literal string search; use -F
                 # so regex metacharacters in the pattern don't produce false
                 # positives. Use `regex_not` for regex matching.
-                if [[ -f "$f" ]] && grep -qF "$pattern" "$f" 2>/dev/null; then
+                if [[ -f "$f" ]] && grep -qF -- "$pattern" "$f" 2>/dev/null; then
                     offender="$f"
                     break
                 fi
@@ -490,7 +490,7 @@ run_checkpoint() {
             for f in "${files[@]}"; do
                 if [[ -f "$f" ]]; then
                     checked_file="$f"
-                    if grep -q${GREP_MODE#-} "$pattern" "$f" 2>/dev/null; then
+                    if grep -q${GREP_MODE#-} -- "$pattern" "$f" 2>/dev/null; then
                         found=true
                         evidence="Pattern found in $f"
                         break
@@ -545,7 +545,7 @@ run_checkpoint() {
             for f in "${files[@]}"; do
                 if [[ -f "$f" ]]; then
                     checked_file="$f"
-                    if grep -q${GREP_MODE#-} "$pattern" "$f" 2>/dev/null; then
+                    if grep -q${GREP_MODE#-} -- "$pattern" "$f" 2>/dev/null; then
                         found=true
                         evidence="Pattern found in $f (should be absent)"
                         break
@@ -699,10 +699,10 @@ if ! $IGNORE_PRECONDITIONS; then
                         if [[ -f "$precond_target" ]] || [[ -d "$precond_target" ]]; then precond_ok=true; fi
                         ;;
                     contains)
-                        if [[ -f "$precond_target" ]] && grep -qF "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                        if [[ -f "$precond_target" ]] && grep -qF -- "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                         ;;
                     regex)
-                        if [[ -f "$precond_target" ]] && grep -q${GREP_MODE#-} "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                        if [[ -f "$precond_target" ]] && grep -q${GREP_MODE#-} -- "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                         ;;
                     json_path)
                         if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
@@ -748,10 +748,10 @@ PRECOND_EOF
                 if [[ -f "$precond_target" ]] || [[ -d "$precond_target" ]]; then precond_ok=true; fi
                 ;;
             contains)
-                if [[ -f "$precond_target" ]] && grep -qF "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                if [[ -f "$precond_target" ]] && grep -qF -- "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                 ;;
             regex)
-                if [[ -f "$precond_target" ]] && grep -q${GREP_MODE#-} "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
+                if [[ -f "$precond_target" ]] && grep -q${GREP_MODE#-} -- "$precond_pattern" "$precond_target" 2>/dev/null; then precond_ok=true; fi
                 ;;
             json_path)
                 if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
