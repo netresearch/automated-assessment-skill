@@ -166,6 +166,106 @@ SKIP_COUNT=0
 SKILL_ID=""
 SCHEMA_VERSION=1
 
+# Auto-exclude well-known transient/dependency directories from glob expansion
+# in *content checks* (regex, regex_not, contains, not_contains). Without this,
+# content checks like SA-* `**/*.php` ingest generated DI caches (var/cache/),
+# built docs (Documentation-GENERATED-temp/), vendored deps (vendor/,
+# node_modules/, .Build/), version control internals (.git/), etc.
+#
+# `file_exists` glob targets are NOT filtered — some checkpoints intentionally
+# count files in vendor/ or .Build/ for sanity checks.
+#
+# Behaviour:
+#   EXCLUDE_PATHS unset      → defaults applied (DEFAULT_EXCLUDE_DIRS)
+#   EXCLUDE_PATHS_ADD=...    → newline-separated dirs added on top of defaults
+#   EXCLUDE_PATHS=...        → REPLACES the defaults entirely (use this when
+#                              a skill needs to scan vendor/ or .Build/ on
+#                              purpose, while still excluding only the dirs
+#                              listed in EXCLUDE_PATHS)
+#
+# Matching is by literal path segment (not glob), so a directory name with
+# shell metacharacters (* ? [ ]) won't be misinterpreted.
+DEFAULT_EXCLUDE_DIRS=(
+    .git .svn .hg
+    vendor node_modules
+    var/cache .Build .build build
+    Documentation-GENERATED-temp
+    .ddev/.global_commands .ddev/db_snapshots
+    .idea .vscode
+    coverage .nyc_output
+    __pycache__ .pytest_cache .tox
+    target dist out
+)
+
+# Normalise an exclude entry: strip CR/whitespace.
+_normalize_exclude_dir() {
+    local dir="$1"
+    dir="${dir//$'\r'/}"
+    # Trim leading/trailing whitespace
+    dir="${dir#"${dir%%[![:space:]]*}"}"
+    dir="${dir%"${dir##*[![:space:]]}"}"
+    printf '%s' "$dir"
+}
+
+if [[ -n "${EXCLUDE_PATHS+x}" ]]; then
+    EXCLUDE_DIRS=()
+    while IFS= read -r d; do
+        d="$(_normalize_exclude_dir "$d")"
+        [[ -n "$d" ]] && EXCLUDE_DIRS+=("$d")
+    done <<<"$EXCLUDE_PATHS"
+else
+    EXCLUDE_DIRS=("${DEFAULT_EXCLUDE_DIRS[@]}")
+fi
+if [[ -n "${EXCLUDE_PATHS_ADD:-}" ]]; then
+    while IFS= read -r d; do
+        d="$(_normalize_exclude_dir "$d")"
+        [[ -n "$d" ]] && EXCLUDE_DIRS+=("$d")
+    done <<<"$EXCLUDE_PATHS_ADD"
+fi
+
+# Match a path's literal segments against a needle's literal segments
+# (sliding window). Avoids bash `case` glob interpretation, so directory
+# names containing shell metacharacters (* ? [ ]) are matched literally.
+_path_contains_segments() {
+    local path="$1"
+    local needle="$2"
+    local -a path_parts needle_parts
+    local i j
+
+    IFS=/ read -r -a path_parts <<<"$path"
+    IFS=/ read -r -a needle_parts <<<"$needle"
+
+    [[ ${#needle_parts[@]} -eq 0 ]] && return 1
+    [[ ${#needle_parts[@]} -gt ${#path_parts[@]} ]] && return 1
+
+    for ((i = 0; i <= ${#path_parts[@]} - ${#needle_parts[@]}; i++)); do
+        for ((j = 0; j < ${#needle_parts[@]}; j++)); do
+            [[ "${path_parts[i + j]}" == "${needle_parts[j]}" ]] || break
+        done
+        [[ $j -eq ${#needle_parts[@]} ]] && return 0
+    done
+    return 1
+}
+
+# is_excluded "path" → returns 0 (true) if path traverses any excluded dir.
+is_excluded() {
+    local path="$1"
+    local dir
+    for dir in "${EXCLUDE_DIRS[@]}"; do
+        _path_contains_segments "$path" "$dir" && return 0
+    done
+    return 1
+}
+
+# Filter an array of glob-matched paths through is_excluded. Echoes filtered
+# paths one per line on stdout.
+filter_excluded() {
+    local p
+    for p in "$@"; do
+        is_excluded "$p" || printf '%s\n' "$p"
+    done
+}
+
 # Parse checkpoint file and run checks
 run_checkpoint() {
     local id="$1"
@@ -235,9 +335,10 @@ run_checkpoint() {
             # expansion themselves. Detect whether target uses a glob/brace
             # expansion so we can apply the "no matches → skip" semantic only
             # to globs (a literal path that doesn't exist is still a real
-            # failure).
+            # failure). Glob matches are filtered through the auto-exclude
+            # list so generated caches/vendored deps don't show up as findings.
             local has_glob=false
-            local files_to_check=() patterns=()
+            local files_to_check=() patterns=() raw_files=()
             if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
                 has_glob=true
                 if [[ "$target" == *"{"*"}"* ]]; then
@@ -248,12 +349,17 @@ run_checkpoint() {
                 shopt -s nullglob globstar
                 for p in "${patterns[@]}"; do
                     if [[ "$p" == *"*"* ]]; then
-                        for ff in $p; do files_to_check+=("$ff"); done
+                        for ff in $p; do raw_files+=("$ff"); done
                     else
-                        files_to_check+=("$p")
+                        raw_files+=("$p")
                     fi
                 done
                 shopt -u nullglob globstar
+                if [[ ${#raw_files[@]} -gt 0 ]]; then
+                    while IFS= read -r f; do
+                        files_to_check+=("$f")
+                    done < <(filter_excluded "${raw_files[@]}")
+                fi
             else
                 files_to_check=("$target")
             fi
@@ -289,7 +395,8 @@ run_checkpoint() {
         not_contains)
             # Support brace expansion + glob (including ** globstar) for target.
             # Passes if pattern is absent from ALL matched files (or no files match).
-            local files_to_check=() patterns=()
+            # Glob matches are filtered through the auto-exclude list.
+            local files_to_check=() patterns=() raw_files=()
             if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
                 if [[ "$target" == *"{"*"}"* ]]; then
                     eval "patterns=($target)"
@@ -299,12 +406,17 @@ run_checkpoint() {
                 shopt -s nullglob globstar
                 for p in "${patterns[@]}"; do
                     if [[ "$p" == *"*"* ]]; then
-                        for ff in $p; do files_to_check+=("$ff"); done
+                        for ff in $p; do raw_files+=("$ff"); done
                     else
-                        files_to_check+=("$p")
+                        raw_files+=("$p")
                     fi
                 done
                 shopt -u nullglob globstar
+                if [[ ${#raw_files[@]} -gt 0 ]]; then
+                    while IFS= read -r f; do
+                        files_to_check+=("$f")
+                    done < <(filter_excluded "${raw_files[@]}")
+                fi
             else
                 files_to_check=("$target")
             fi
@@ -336,9 +448,10 @@ run_checkpoint() {
             # SA-PY-* targeting **/*.py on a TYPO3 PHP-only repo.
             # Brace expansion can produce more glob patterns
             # (e.g. **/*.{js,ts} → **/*.js, **/*.ts), so we expand globs
-            # AFTER brace expansion.
+            # AFTER brace expansion. Glob matches are filtered through the
+            # auto-exclude list.
             local has_glob=false
-            local files=() patterns=()
+            local files=() patterns=() raw_files=()
             if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
                 has_glob=true
                 if [[ "$target" == *"{"*"}"* ]]; then
@@ -349,12 +462,17 @@ run_checkpoint() {
                 shopt -s nullglob globstar
                 for p in "${patterns[@]}"; do
                     if [[ "$p" == *"*"* ]]; then
-                        for ff in $p; do files+=("$ff"); done
+                        for ff in $p; do raw_files+=("$ff"); done
                     else
-                        files+=("$p")
+                        raw_files+=("$p")
                     fi
                 done
                 shopt -u nullglob globstar
+                if [[ ${#raw_files[@]} -gt 0 ]]; then
+                    while IFS= read -r f; do
+                        files+=("$f")
+                    done < <(filter_excluded "${raw_files[@]}")
+                fi
             else
                 files=("$target")
             fi
@@ -388,8 +506,8 @@ run_checkpoint() {
         regex_not)
             # Inverse of regex: pass if pattern is NOT found in any matching file.
             # Handles brace expansion + glob (incl. globstar) consistently with
-            # the other handlers.
-            local files=() patterns=()
+            # the other handlers. Glob matches filtered via auto-exclude list.
+            local files=() patterns=() raw_files=()
             if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
                 if [[ "$target" == *"{"*"}"* ]]; then
                     eval "patterns=($target)"
@@ -399,12 +517,17 @@ run_checkpoint() {
                 shopt -s nullglob globstar
                 for p in "${patterns[@]}"; do
                     if [[ "$p" == *"*"* ]]; then
-                        for ff in $p; do files+=("$ff"); done
+                        for ff in $p; do raw_files+=("$ff"); done
                     else
-                        files+=("$p")
+                        raw_files+=("$p")
                     fi
                 done
                 shopt -u nullglob globstar
+                if [[ ${#raw_files[@]} -gt 0 ]]; then
+                    while IFS= read -r f; do
+                        files+=("$f")
+                    done < <(filter_excluded "${raw_files[@]}")
+                fi
             else
                 files=("$target")
             fi
@@ -457,13 +580,23 @@ run_checkpoint() {
             # resolved by the *child* bash, not pre-expanded against the
             # runner's empty scope. The whitelist in is_safe_eval_command
             # keeps arbitrary command injection bounded.
-            if [[ -z "$pattern" ]]; then
+            #
+            # Field name resolution: prefer `pattern:`, then fall back to
+            # `command:` (already aliased into $pattern) and `target:`. Some
+            # skills (notably security-audit) put the command in `target:`,
+            # which is technically a schema deviation but common enough to
+            # accept transparently.
+            local cmd_text="$pattern"
+            if [[ -z "$cmd_text" && -n "$target" ]]; then
+                cmd_text="$target"
+            fi
+            if [[ -z "$cmd_text" ]]; then
                 status="fail"
-                evidence="Command rejected: empty pattern (checkpoint likely uses multi-line YAML scalar; use single-line pattern)"
+                evidence="Command rejected: empty pattern (checkpoint likely uses multi-line YAML scalar; use single-line pattern, or put the command in pattern:/target:)"
             else
                 local reject_reason
-                if reject_reason=$(is_safe_eval_command "$pattern"); then
-                    if bash <<<"$pattern" > /dev/null 2>&1; then
+                if reject_reason=$(is_safe_eval_command "$cmd_text"); then
+                    if bash <<<"$cmd_text" > /dev/null 2>&1; then
                         status="pass"
                         evidence="Command succeeded"
                     else
