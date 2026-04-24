@@ -226,13 +226,30 @@ run_checkpoint() {
             fi
             ;;
         contains)
-            # Support brace expansion and glob (including ** globstar) for target
-            local files_to_check=()
-            if [[ "$target" == *"{"*"}"* ]]; then
-                eval "files_to_check=($target)"
-            elif [[ "$target" == *"*"* ]]; then
+            # Support brace expansion AND glob (including ** globstar) for
+            # target. Brace expansion can produce more glob patterns
+            # (e.g. **/*.{js,ts} → **/*.js, **/*.ts), which then need glob
+            # expansion themselves. Detect whether target uses a glob/brace
+            # expansion so we can apply the "no matches → skip" semantic only
+            # to globs (a literal path that doesn't exist is still a real
+            # failure).
+            local has_glob=false
+            local files_to_check=() patterns=()
+            if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
+                has_glob=true
+                if [[ "$target" == *"{"*"}"* ]]; then
+                    eval "patterns=($target)"
+                else
+                    patterns=("$target")
+                fi
                 shopt -s nullglob globstar
-                files_to_check=($target)
+                for p in "${patterns[@]}"; do
+                    if [[ "$p" == *"*"* ]]; then
+                        for ff in $p; do files_to_check+=("$ff"); done
+                    else
+                        files_to_check+=("$p")
+                    fi
+                done
                 shopt -u nullglob globstar
             else
                 files_to_check=("$target")
@@ -253,6 +270,11 @@ run_checkpoint() {
             if $found; then
                 status="pass"
                 evidence="Pattern found in $checked_file"
+            elif $has_glob && [[ -z "$checked_file" ]]; then
+                # Glob target with zero matching files → checkpoint is N/A
+                # (e.g. SA-PY-* targeting **/*.py on a repo with no Python).
+                status="skip"
+                evidence="No files match glob: $target (checkpoint not applicable)"
             elif [[ -z "$checked_file" ]]; then
                 status="fail"
                 evidence="Target file not found: $target"
@@ -262,14 +284,23 @@ run_checkpoint() {
             fi
             ;;
         not_contains)
-            # Support brace expansion and glob (including ** globstar) for target.
+            # Support brace expansion + glob (including ** globstar) for target.
             # Passes if pattern is absent from ALL matched files (or no files match).
-            local files_to_check=()
-            if [[ "$target" == *"{"*"}"* ]]; then
-                eval "files_to_check=($target)"
-            elif [[ "$target" == *"*"* ]]; then
+            local files_to_check=() patterns=()
+            if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
+                if [[ "$target" == *"{"*"}"* ]]; then
+                    eval "patterns=($target)"
+                else
+                    patterns=("$target")
+                fi
                 shopt -s nullglob globstar
-                files_to_check=($target)
+                for p in "${patterns[@]}"; do
+                    if [[ "$p" == *"*"* ]]; then
+                        for ff in $p; do files_to_check+=("$ff"); done
+                    else
+                        files_to_check+=("$p")
+                    fi
+                done
                 shopt -u nullglob globstar
             else
                 files_to_check=("$target")
@@ -295,15 +326,31 @@ run_checkpoint() {
             fi
             ;;
         regex)
-            # Handle glob patterns and brace expansion in target
-            local files=()
-            if [[ "$target" == *"{"*"}"* ]]; then
-                # Brace expansion
-                eval "files=($target)"
-            elif [[ "$target" == *"*"* ]]; then
-                # Glob pattern - expand it
+            # Handle glob patterns and brace expansion in target.
+            # Track whether the target uses a glob/brace pattern so that
+            # zero matches against a glob is treated as "checkpoint not
+            # applicable" (skip) rather than a hard failure — e.g.
+            # SA-PY-* targeting **/*.py on a TYPO3 PHP-only repo.
+            # Brace expansion can produce more glob patterns
+            # (e.g. **/*.{js,ts} → **/*.js, **/*.ts), so we expand globs
+            # AFTER brace expansion.
+            local has_glob=false
+            local files=() patterns=()
+            if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
+                has_glob=true
+                if [[ "$target" == *"{"*"}"* ]]; then
+                    eval "patterns=($target)"
+                else
+                    patterns=("$target")
+                fi
                 shopt -s nullglob globstar
-                files=($target)
+                for p in "${patterns[@]}"; do
+                    if [[ "$p" == *"*"* ]]; then
+                        for ff in $p; do files+=("$ff"); done
+                    else
+                        files+=("$p")
+                    fi
+                done
                 shopt -u nullglob globstar
             else
                 files=("$target")
@@ -324,29 +371,36 @@ run_checkpoint() {
 
             if $found; then
                 status="pass"
+            elif $has_glob && [[ ${#files[@]} -eq 0 ]]; then
+                status="skip"
+                evidence="No files match glob: $target (checkpoint not applicable)"
+            elif [[ -z "$checked_file" ]]; then
+                status="fail"
+                evidence="Target file not found: $target"
             else
-                if [[ ${#files[@]} -eq 0 ]]; then
-                    status="fail"
-                    evidence="No files match pattern: $target"
-                elif [[ -z "$checked_file" ]]; then
-                    status="fail"
-                    evidence="Target file not found: $target"
-                else
-                    status="fail"
-                    evidence="Pattern not found in $checked_file"
-                fi
+                status="fail"
+                evidence="Pattern not found in $checked_file"
             fi
             ;;
         regex_not)
-            # Inverse of regex: pass if pattern is NOT found in any matching file
-            local files=()
-            if [[ "$target" == *"{"*"}"* ]]; then
-                # Brace expansion
-                eval "files=($target)"
-            elif [[ "$target" == *"*"* ]]; then
-                # Glob pattern - expand it
+            # Inverse of regex: pass if pattern is NOT found in any matching file.
+            # Handles brace expansion + glob (incl. globstar) consistently with
+            # the other handlers.
+            local files=() patterns=()
+            if [[ "$target" == *"{"*"}"* || "$target" == *"*"* ]]; then
+                if [[ "$target" == *"{"*"}"* ]]; then
+                    eval "patterns=($target)"
+                else
+                    patterns=("$target")
+                fi
                 shopt -s nullglob globstar
-                files=($target)
+                for p in "${patterns[@]}"; do
+                    if [[ "$p" == *"*"* ]]; then
+                        for ff in $p; do files+=("$ff"); done
+                    else
+                        files+=("$p")
+                    fi
+                done
                 shopt -u nullglob globstar
             else
                 files=("$target")
