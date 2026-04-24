@@ -153,6 +153,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 SKIP_COUNT=0
 SKILL_ID=""
+SCHEMA_VERSION=1
 
 # Parse checkpoint file and run checks
 run_checkpoint() {
@@ -549,7 +550,7 @@ PRECOND_EOF
                 ;;
             command)
                 if is_safe_eval_command "$precond_pattern" > /dev/null 2>&1; then
-                    if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                    if bash -c "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
                 fi
                 ;;
         esac
@@ -585,9 +586,9 @@ while IFS= read -r line; do
     # v2 bumps are reserved for additive fields like `scope:` that the runner
     # tolerates by ignoring unknown keys, so accept both).
     if [[ "$line" =~ ^version:[[:space:]]*([0-9]+)$ ]]; then
-        version="${BASH_REMATCH[1]}"
-        if [[ "$version" != "1" && "$version" != "2" ]]; then
-            echo -e "${RED}Error: Unsupported schema version: $version${NC}" >&2
+        SCHEMA_VERSION="${BASH_REMATCH[1]}"
+        if [[ "$SCHEMA_VERSION" != "1" && "$SCHEMA_VERSION" != "2" ]]; then
+            echo -e "${RED}Error: Unsupported schema version: $SCHEMA_VERSION${NC}" >&2
             exit 1
         fi
         continue
@@ -702,7 +703,7 @@ cat << EOF
   "project_root": "$PROJECT_ROOT",
   "skill_id": "$SKILL_ID",
   "fix_command": "$(skill_fix_command "$SKILL_ID")",
-  "schema_version": 1,
+  "schema_version": $SCHEMA_VERSION,
   "summary": {
     "total": $TOTAL,
     "pass": $PASS_COUNT,
