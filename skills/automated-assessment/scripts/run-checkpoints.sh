@@ -217,10 +217,14 @@ run_checkpoint() {
             fi
             ;;
         contains)
-            # Support brace expansion for target
+            # Support brace expansion and glob (including ** globstar) for target
             local files_to_check=()
             if [[ "$target" == *"{"*"}"* ]]; then
                 eval "files_to_check=($target)"
+            elif [[ "$target" == *"*"* ]]; then
+                shopt -s nullglob globstar
+                files_to_check=($target)
+                shopt -u nullglob globstar
             else
                 files_to_check=("$target")
             fi
@@ -249,15 +253,36 @@ run_checkpoint() {
             fi
             ;;
         not_contains)
-            if [[ -f "$target" ]] && ! grep -q "$pattern" "$target" 2>/dev/null; then
-                status="pass"
-                evidence="Pattern correctly absent from $target"
-            elif [[ ! -f "$target" ]]; then
-                status="pass"
-                evidence="Target file not found (OK for not_contains): $target"
+            # Support brace expansion and glob (including ** globstar) for target.
+            # Passes if pattern is absent from ALL matched files (or no files match).
+            local files_to_check=()
+            if [[ "$target" == *"{"*"}"* ]]; then
+                eval "files_to_check=($target)"
+            elif [[ "$target" == *"*"* ]]; then
+                shopt -s nullglob globstar
+                files_to_check=($target)
+                shopt -u nullglob globstar
             else
+                files_to_check=("$target")
+            fi
+
+            local offender=""
+            for f in "${files_to_check[@]}"; do
+                if [[ -f "$f" ]] && grep -q "$pattern" "$f" 2>/dev/null; then
+                    offender="$f"
+                    break
+                fi
+            done
+
+            if [[ -n "$offender" ]]; then
                 status="fail"
-                evidence="Pattern should not be in $target"
+                evidence="Pattern should not be in $offender"
+            elif [[ ${#files_to_check[@]} -eq 0 ]]; then
+                status="pass"
+                evidence="No target files matched (OK for not_contains): $target"
+            else
+                status="pass"
+                evidence="Pattern correctly absent from target(s): $target"
             fi
             ;;
         regex)
@@ -359,23 +384,28 @@ run_checkpoint() {
             evidence="GitHub API checks require interactive mode"
             ;;
         command)
-            # eval is needed here because checkpoint YAML commands may contain
-            # shell features like pipes, redirections, and subshells that cannot
-            # be executed via simple command invocation. To mitigate injection
-            # risk, we validate the command's base binary against a whitelist
-            # and reject dangerous patterns before execution.
-            local reject_reason
-            if reject_reason=$(is_safe_eval_command "$pattern"); then
-                if eval "$pattern" > /dev/null 2>&1; then
-                    status="pass"
-                    evidence="Command succeeded"
+            # Run the command in a subshell via `bash -c` so that any `exit` or
+            # `set -e` inside the pattern cannot terminate the runner. Without
+            # the subshell, a checkpoint like "... && exit 1 || exit 0" kills
+            # the runner mid-skill. The whitelist in is_safe_eval_command keeps
+            # arbitrary command injection bounded.
+            if [[ -z "$pattern" ]]; then
+                status="fail"
+                evidence="Command rejected: empty pattern (checkpoint likely uses multi-line YAML scalar; use single-line pattern)"
+            else
+                local reject_reason
+                if reject_reason=$(is_safe_eval_command "$pattern"); then
+                    if bash -c "$pattern" > /dev/null 2>&1; then
+                        status="pass"
+                        evidence="Command succeeded"
+                    else
+                        status="fail"
+                        evidence="Command failed"
+                    fi
                 else
                     status="fail"
-                    evidence="Command failed"
+                    evidence="Command rejected: $reject_reason"
                 fi
-            else
-                status="fail"
-                evidence="Command rejected: $reject_reason"
             fi
             ;;
         *)
@@ -470,7 +500,7 @@ if ! $IGNORE_PRECONDITIONS; then
                         ;;
                     command)
                         if is_safe_eval_command "$precond_pattern" > /dev/null 2>&1; then
-                            if eval "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                            if bash -c "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
                         fi
                         ;;
                 esac
@@ -551,10 +581,12 @@ while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ -z "${line// }" ]] && continue
 
-    # Detect schema version
+    # Detect schema version (v1 and v2 use the same mechanical check surface;
+    # v2 bumps are reserved for additive fields like `scope:` that the runner
+    # tolerates by ignoring unknown keys, so accept both).
     if [[ "$line" =~ ^version:[[:space:]]*([0-9]+)$ ]]; then
         version="${BASH_REMATCH[1]}"
-        if [[ "$version" != "1" ]]; then
+        if [[ "$version" != "1" && "$version" != "2" ]]; then
             echo -e "${RED}Error: Unsupported schema version: $version${NC}" >&2
             exit 1
         fi
