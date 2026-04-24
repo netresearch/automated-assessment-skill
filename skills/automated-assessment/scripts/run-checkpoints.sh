@@ -656,6 +656,15 @@ while IFS= read -r line; do
     elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*([^[:space:]].*)$ ]]; then
         # Unquoted pattern
         current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*\'(.+)\'$ ]]; then
+        # `command:` is an accepted alias for `pattern:` on type=command
+        # checkpoints (in active use by php-modernization, typo3-testing,
+        # typo3-conformance, enterprise-readiness, agent-harness, github-release).
+        current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*\"(.+)\"$ ]]; then
+        current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*([^[:space:]].*)$ ]]; then
+        current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*severity:[[:space:]]*(.+)$ ]]; then
         current_severity="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*fix_skill:[[:space:]]*(.+)$ ]]; then
