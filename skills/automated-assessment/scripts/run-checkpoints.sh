@@ -116,22 +116,25 @@ skill_fix_command() {
 # Returns 0 if safe, 1 if rejected (with reason on stdout).
 is_safe_eval_command() {
     local pattern="$1"
+    # Strip a leading `! ` or `!` (POSIX pipeline negation) before extracting
+    # the base command. Without this, `! grep -q ...` looks at `!` as the
+    # base command (whitelist miss); the previous `${cmd_base#!}` strip only
+    # handled the no-space form.
+    local stripped="${pattern#!}"
+    stripped="${stripped# }"
     local cmd_base
-    cmd_base=$(echo "$pattern" | awk '{print $1}' | sed 's|^\./||')
-    # Strip a leading `!` (POSIX pipeline negation) so patterns like
-    # `! grep -q ...` are evaluated against the actual base command.
+    cmd_base=$(echo "$stripped" | awk '{print $1}' | sed 's|^\./||')
     cmd_base="${cmd_base#!}"
 
     # Whitelist of allowed base commands for checkpoint execution.
-    # Includes shell control keywords (for/if/while/case/until) — these don't
-    # execute external commands themselves; the body still runs through the
-    # same is_safe_eval_command check at the bash -c layer because the
-    # dangerous-pattern filter applies to the entire pattern string.
+    # Includes shell control keywords + builtins — these don't execute
+    # external commands themselves; the body still runs through the same
+    # dangerous-pattern filter applied to the entire pattern string.
     local -a allowed_cmds=(
         grep egrep fgrep find test wc jq yq python3 python composer php
         phpstan phpcs phpcbf rector phpunit node npm cat head tail ls
         stat file diff sort uniq git make go sed awk tr cut xargs
-        for if while case until '['
+        for if while case until '[' set printf echo true false
     )
 
     # Reject commands containing dangerous patterns regardless of base
