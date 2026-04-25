@@ -140,6 +140,38 @@ is_safe_eval_command() {
         return 1
     fi
 
+    # Reject any `..` segment anywhere in the pattern. Path traversal
+    # like `vendor/bin/../set` or `./vendor/bin/../../some-script` would
+    # otherwise still match the `vendor/bin/*` allow-prefix below while
+    # actually resolving outside vendor/bin.
+    if [[ "$pattern" =~ \.\. ]]; then
+        echo "pattern contains '..' path traversal"
+        return 1
+    fi
+
+    # Reject command-chaining metacharacters that smuggle a second
+    # command past the cmd_base check (`grep foo && ./set`,
+    # `grep foo; ./set`, `grep foo \`./set\``, `grep foo $(./set)`).
+    # We do NOT block `|` here — pipe chains like `grep foo | wc -l` are
+    # idiomatic. Pipe stages still run through the per-token check
+    # below for any `./X` that isn't `./vendor/bin/`.
+    if [[ "$pattern" =~ (\;|\&\&|\|\||\`) || "$pattern" == *'$('* ]]; then
+        echo "pattern contains command-chaining metacharacter (; && || \` \$())"
+        return 1
+    fi
+
+    # Scan the entire pattern for any whitespace-separated `./X` token
+    # that is NOT `./vendor/bin/...`. This catches a `./X` invocation
+    # buried after a pipe, file redirection, etc. — locations that
+    # cmd_base does not reach.
+    local tok
+    for tok in $pattern; do
+        if [[ "$tok" == ./* && "$tok" != ./vendor/bin/* ]]; then
+            echo "pattern contains './${tok#./}'; only ./vendor/bin/* is allowed"
+            return 1
+        fi
+    done
+
     # Allow vendor/bin/* paths (with or without leading `./`). Anything
     # else with a path component is rejected — checkpoints may not
     # invoke `./foo` style scripts. The previous `sed 's|^\./||'`
