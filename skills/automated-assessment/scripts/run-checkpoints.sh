@@ -116,15 +116,12 @@ skill_fix_command() {
 # Returns 0 if safe, 1 if rejected (with reason on stdout).
 is_safe_eval_command() {
     local pattern="$1"
-    # Strip a leading `! ` or `!` (POSIX pipeline negation) before extracting
-    # the base command. Without this, `! grep -q ...` looks at `!` as the
-    # base command (whitelist miss); the previous `${cmd_base#!}` strip only
-    # handled the no-space form.
+    # Strip a leading `!` (POSIX pipeline negation) so `! grep -q ...`
+    # reaches whitelist evaluation as `grep`. awk's default field
+    # splitter handles the leading whitespace introduced by the strip.
     local stripped="${pattern#!}"
-    stripped="${stripped# }"
     local cmd_base
-    cmd_base=$(echo "$stripped" | awk '{print $1}' | sed 's|^\./||')
-    cmd_base="${cmd_base#!}"
+    cmd_base=$(echo "$stripped" | awk '{print $1}')
 
     # Whitelist of allowed base commands for checkpoint execution.
     # Includes shell control keywords + builtins — these don't execute
@@ -143,9 +140,18 @@ is_safe_eval_command() {
         return 1
     fi
 
-    # Allow vendor/bin/* paths
-    if [[ "$cmd_base" == vendor/bin/* ]]; then
+    # Allow vendor/bin/* paths (with or without leading `./`). Anything
+    # else with a path component is rejected — checkpoints may not
+    # invoke `./foo` style scripts. The previous `sed 's|^\./||'`
+    # normalisation let `./set` (a repo-local script) pass the
+    # whitelist by matching the `set` shell-builtin entry.
+    if [[ "$cmd_base" == vendor/bin/* || "$cmd_base" == ./vendor/bin/* ]]; then
         return 0
+    fi
+
+    if [[ "$cmd_base" == */* ]]; then
+        echo "'$cmd_base' has path prefix; only vendor/bin/* (with optional ./) is allowed"
+        return 1
     fi
 
     for acmd in "${allowed_cmds[@]}"; do
