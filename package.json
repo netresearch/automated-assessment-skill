@@ -1,0 +1,41 @@
+{
+  "name": "@netresearch/automated-assessment-skill",
+  "version": "0.0.0-source",
+  "description": "Systematic project assessment against checkpoint-enabled skills with scripted verification + LLM review.",
+  "license": "(MIT AND CC-BY-SA-4.0)",
+  "author": "Netresearch DTT GmbH (https://www.netresearch.de/)",
+  "homepage": "https://github.com/netresearch/automated-assessment-skill",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/netresearch/automated-assessment-skill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/netresearch/automated-assessment-skill/issues"
+  },
+  "keywords": [
+    "ai-agent-skill",
+    "automated-assessment",
+    "checkpoints",
+    "compliance",
+    "quality-gates",
+    "anthropic",
+    "claude-code"
+  ],
+  "aiAgentSkill": [
+    "skills/automated-assessment/SKILL.md",
+    "skills/add-checkpoints/SKILL.md"
+  ],
+  "files": [
+    ".claude-plugin/",
+    "skills/automated-assessment/",
+    "skills/add-checkpoints/",
+    "scripts/",
+    "LICENSE-MIT",
+    "LICENSE-CC-BY-SA-4.0",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "peerDependencies": {
+    "@netresearch/agent-skill-coordinator": "^0.1"
+  }
+}
