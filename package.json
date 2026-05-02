@@ -26,12 +26,14 @@
     "skills/add-checkpoints/SKILL.md"
   ],
   "files": [
+    ".claude-plugin/",
     "skills/automated-assessment/",
     "skills/add-checkpoints/",
     "scripts/",
     "LICENSE-MIT",
     "LICENSE-CC-BY-SA-4.0",
-    "README.md"
+    "README.md",
+    "AGENTS.md"
   ],
   "peerDependencies": {
     "@netresearch/agent-skill-coordinator": "^0.1"

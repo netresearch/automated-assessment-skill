@@ -54,6 +54,7 @@ composer require netresearch/automated-assessment-skill
 ```
 
 Requires [netresearch/composer-agent-skill-plugin](https://github.com/netresearch/composer-agent-skill-plugin).
+
 ### npm (Node Projects)
 
 ```bash
@@ -71,7 +72,6 @@ Requires [@netresearch/agent-skill-coordinator](https://github.com/netresearch/n
   }
 }
 ```
-
 
 ## Usage
 
