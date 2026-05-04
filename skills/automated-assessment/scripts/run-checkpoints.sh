@@ -699,6 +699,8 @@ if ! $IGNORE_PRECONDITIONS; then
     precond_type=""
     precond_target=""
     precond_pattern=""
+    precond_desc=""
+    precond_cmd=""
     in_preconditions_section=false
     precond_skill_id=""
 
@@ -746,16 +748,21 @@ if ! $IGNORE_PRECONDITIONS; then
                         if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
                         ;;
                     command)
-                        if is_safe_eval_command "$precond_pattern" > /dev/null 2>&1; then
-                            if bash -c "$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                        precond_cmd="${precond_pattern:-$precond_target}"
+                        if [[ -n "$precond_cmd" ]] && is_safe_eval_command "$precond_cmd" > /dev/null 2>&1; then
+                            if bash -c "$precond_cmd" > /dev/null 2>&1; then precond_ok=true; fi
                         fi
                         ;;
                 esac
 
                 if ! $precond_ok; then
-                    if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"; fi
+                    precond_detail="${precond_cmd:-$precond_target}"
+                    if [[ -n "$precond_desc" ]]; then
+                        precond_detail="$precond_detail — $precond_desc"
+                    fi
+                    if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_detail)${NC}"; fi
                     cat << PRECOND_EOF
-{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_target"}
+{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_detail"}
 PRECOND_EOF
                     exit 0
                 fi
@@ -763,6 +770,8 @@ PRECOND_EOF
             precond_type="${BASH_REMATCH[1]}"
             precond_target=""
             precond_pattern=""
+            precond_desc=""
+            precond_cmd=""
         elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
             precond_target="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\'(.+)\'$ ]]; then
@@ -775,6 +784,12 @@ PRECOND_EOF
             precond_pattern="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*([^[:space:]].*)$ ]]; then
             precond_pattern="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*\"(.+)\"$ ]]; then
+            precond_desc="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*\'(.+)\'$ ]]; then
+            precond_desc="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*(.+)$ ]]; then
+            precond_desc="${BASH_REMATCH[1]}"
         fi
     done < "$CHECKPOINT_FILE"
 
@@ -795,16 +810,21 @@ PRECOND_EOF
                 if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
                 ;;
             command)
-                if is_safe_eval_command "$precond_pattern" > /dev/null 2>&1; then
-                    if bash <<<"$precond_pattern" > /dev/null 2>&1; then precond_ok=true; fi
+                precond_cmd="${precond_pattern:-$precond_target}"
+                if [[ -n "$precond_cmd" ]] && is_safe_eval_command "$precond_cmd" > /dev/null 2>&1; then
+                    if bash <<<"$precond_cmd" > /dev/null 2>&1; then precond_ok=true; fi
                 fi
                 ;;
         esac
 
         if ! $precond_ok; then
-            if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_target)${NC}"; fi
+            precond_detail="${precond_cmd:-$precond_target}"
+            if [[ -n "$precond_desc" ]]; then
+                precond_detail="$precond_detail — $precond_desc"
+            fi
+            if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_detail)${NC}"; fi
             cat << PRECOND_EOF
-{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_target"}
+{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_detail"}
 PRECOND_EOF
             exit 0
         fi
