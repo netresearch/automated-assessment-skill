@@ -7,12 +7,20 @@
 version: 1
 skill_id: my-skill-name
 
-# preconditions:
-#   - type: file_exists
-#     target: some-required-file
-#   - type: json_path
-#     target: composer.json
-#     pattern: '.type == "some-type"'
+# Preconditions gate the entire skill. If any precondition fails, every
+# checkpoint in this file is skipped (see automated-assessment runner).
+# Customize these for your skill — the defaults below assume a Composer
+# project with at least one PHP source file (matches MS-04 / MS-05).
+preconditions:
+  - type: file_exists
+    target: composer.json
+    desc: "Project must be a Composer project"
+  - type: command
+    # `-prune` short-circuits descent into vendor/.git rather than just
+    # filtering matches, and `-print -quit` stops at the first hit — keeps
+    # the precondition cheap on large repos.
+    pattern: "find . '(' -path './vendor' -o -path './.git' -o -path './node_modules' ')' -prune -o -name '*.php' -type f -print -quit | grep -q ."
+    desc: "Project must contain at least one .php source file (skips metadata-only composer projects)"
 
 mechanical:
   # File existence checks
