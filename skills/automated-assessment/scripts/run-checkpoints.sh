@@ -156,6 +156,66 @@ check_org_provides() {
     fi
 }
 
+# Tracks fetched-upstream-workflow temp files so the trap at script-end
+# can clean them up. Cache by "owner/repo/path@ref" to avoid refetching
+# the same upstream workflow across checkpoints.
+declare -A FOLLOW_USES_CACHE=()
+declare -A FOLLOW_USES_SOURCE=()
+declare -a FOLLOW_USES_TEMPFILES=()
+
+cleanup_follow_uses_temps() {
+    local f
+    for f in "${FOLLOW_USES_TEMPFILES[@]:-}"; do
+        [[ -n "$f" && -f "$f" ]] && rm -f "$f"
+    done
+}
+trap cleanup_follow_uses_temps EXIT
+
+# Given a list of local workflow file paths, scan each for
+# `uses: owner/repo/.github/workflows/<file>.yml@<ref>` references,
+# fetch the upstream workflow content via `gh api`, write it to a temp
+# file, and echo lines `<source-cache-key>\t<tmpfile>` on stdout.
+# One hop only — does NOT recurse into the upstream workflow's own
+# `uses:` references. Silently skips when gh is missing/unauthenticated.
+#
+# Stdout format is structured (TAB-separated) because process
+# substitution `< <(expand_follow_uses ...)` runs the function in a
+# subshell, which means cache assignments to global associative
+# arrays would be lost. The caller parses the stdout pairs and
+# repopulates FOLLOW_USES_CACHE / FOLLOW_USES_SOURCE / FOLLOW_USES_TEMPFILES
+# in the parent shell, so cleanup-on-exit and per-checkpoint dedup work.
+expand_follow_uses() {
+    local local_file
+    if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+        return 0
+    fi
+    for local_file in "$@"; do
+        [[ -f "$local_file" ]] || continue
+        # Match  uses: owner/repo/.github/workflows/X.yml@ref
+        while IFS= read -r ref_line; do
+            local owner_repo path ref cache_key cached_path tmpfile
+            if [[ "$ref_line" =~ uses:[[:space:]]+\"?([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)/(\.github/workflows/[A-Za-z0-9._/-]+\.ya?ml)@([^[:space:]\"]+) ]]; then
+                owner_repo="${BASH_REMATCH[1]}"
+                path="${BASH_REMATCH[2]}"
+                ref="${BASH_REMATCH[3]}"
+                cache_key="${owner_repo}/${path}@${ref}"
+                cached_path="${FOLLOW_USES_CACHE[$cache_key]:-}"
+                if [[ -n "$cached_path" && -f "$cached_path" ]]; then
+                    printf '%s\t%s\n' "$cache_key" "$cached_path"
+                    continue
+                fi
+                tmpfile=$(mktemp --suffix=.yml)
+                if gh api "repos/${owner_repo}/contents/${path}?ref=${ref}" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null > "$tmpfile" \
+                    && [[ -s "$tmpfile" ]]; then
+                    printf '%s\t%s\n' "$cache_key" "$tmpfile"
+                else
+                    rm -f "$tmpfile"
+                fi
+            fi
+        done < <(grep -E '^\s*(- )?\s*uses:' "$local_file" 2>/dev/null || true)
+    done
+}
+
 # Validate that a command is safe to eval.
 # Uses a whitelist of allowed base commands and rejects dangerous patterns.
 # Returns 0 if safe, 1 if rejected (with reason on stdout).
@@ -456,6 +516,19 @@ run_checkpoint() {
                 files_to_check=("$target")
             fi
 
+            # follow_uses: also search any reusable workflow referenced
+            # by `uses:` in the target files (one hop, fetched via gh api).
+            if [[ "$follow_uses" == "true" ]]; then
+                local _src _tmp
+                while IFS=$'\t' read -r _src _tmp; do
+                    [[ -z "$_tmp" ]] && continue
+                    files_to_check+=("$_tmp")
+                    FOLLOW_USES_CACHE[$_src]="$_tmp"
+                    FOLLOW_USES_SOURCE[$_tmp]="$_src"
+                    FOLLOW_USES_TEMPFILES+=("$_tmp")
+                done < <(expand_follow_uses "${files_to_check[@]}")
+            fi
+
             local found=false
             local checked_file=""
             for f in "${files_to_check[@]}"; do
@@ -475,7 +548,12 @@ run_checkpoint() {
 
             if $found; then
                 status="pass"
-                evidence="Pattern found in $checked_file"
+                local _src="${FOLLOW_USES_SOURCE[$checked_file]:-}"
+                if [[ -n "$_src" ]]; then
+                    evidence="Pattern found via reusable workflow $_src"
+                else
+                    evidence="Pattern found in $checked_file"
+                fi
             elif $has_glob && [[ -z "$checked_file" ]]; then
                 # Glob target with zero matching files → checkpoint is N/A
                 # (e.g. SA-PY-* targeting **/*.py on a repo with no Python).
@@ -577,6 +655,19 @@ run_checkpoint() {
                 files=("$target")
             fi
 
+            # follow_uses: also search any reusable workflow referenced
+            # by `uses:` in the target files (one hop, fetched via gh api).
+            if [[ "$follow_uses" == "true" ]]; then
+                local _src _tmp
+                while IFS=$'\t' read -r _src _tmp; do
+                    [[ -z "$_tmp" ]] && continue
+                    files+=("$_tmp")
+                    FOLLOW_USES_CACHE[$_src]="$_tmp"
+                    FOLLOW_USES_SOURCE[$_tmp]="$_src"
+                    FOLLOW_USES_TEMPFILES+=("$_tmp")
+                done < <(expand_follow_uses "${files[@]}")
+            fi
+
             local found=false
             local checked_file=""
             for f in "${files[@]}"; do
@@ -584,7 +675,12 @@ run_checkpoint() {
                     checked_file="$f"
                     if grep -q${GREP_MODE#-} -- "$pattern" "$f" 2>/dev/null; then
                         found=true
-                        evidence="Pattern found in $f"
+                        local _src="${FOLLOW_USES_SOURCE[$f]:-}"
+                        if [[ -n "$_src" ]]; then
+                            evidence="Pattern found via reusable workflow $_src"
+                        else
+                            evidence="Pattern found in $f"
+                        fi
                         break
                     fi
                 fi
