@@ -111,6 +111,51 @@ skill_fix_command() {
     esac
 }
 
+# Resolve the github.com owner+repo of the current project from the
+# local git origin remote. Sets the globals GH_OWNER and GH_REPO in the
+# parent shell — do NOT call via $(...) (that runs in a subshell and the
+# globals would not persist). Returns 0 on success, 1 when origin is
+# missing, not on github.com, or unparseable.
+resolve_github_owner() {
+    if [[ -n "${GH_OWNER:-}" && -n "${GH_REPO:-}" ]]; then
+        return 0
+    fi
+    local origin_url stripped owner_repo
+    origin_url=$(git config --get remote.origin.url 2>/dev/null || true)
+    [[ -z "$origin_url" ]] && return 1
+    stripped="${origin_url%/}"
+    stripped="${stripped%.git}"
+    owner_repo=$(echo "$stripped" | sed -nE 's|^.*github\.com[:/]+([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)$|\1/\2|p')
+    [[ ! "$owner_repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] && return 1
+    GH_OWNER="${owner_repo%%/*}"
+    GH_REPO="${owner_repo##*/}"
+    return 0
+}
+
+# Check whether the org's .github community-health repo provides a given
+# file (e.g. SECURITY.md, CONTRIBUTING.md). Used as a fallback for
+# file_exists checkpoints with `org_provides:`. Returns 0 (found), 1 (not
+# found / lookup failed). Caches per-(owner,path) in $GH_ORG_PROVIDES_*.
+check_org_provides() {
+    local rel_path="$1"
+    resolve_github_owner || return 1
+    [[ -z "${GH_OWNER:-}" ]] && return 1
+    if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+        return 1
+    fi
+    local cache_key="GH_ORG_PROVIDES_${GH_OWNER}_${rel_path//[^A-Za-z0-9]/_}"
+    local cached="${!cache_key:-}"
+    if [[ "$cached" == "yes" ]]; then return 0; fi
+    if [[ "$cached" == "no" ]];  then return 1; fi
+    if gh api "repos/${GH_OWNER}/.github/contents/${rel_path}" >/dev/null 2>&1; then
+        printf -v "$cache_key" '%s' "yes"
+        return 0
+    else
+        printf -v "$cache_key" '%s' "no"
+        return 1
+    fi
+}
+
 # Validate that a command is safe to eval.
 # Uses a whitelist of allowed base commands and rejects dangerous patterns.
 # Returns 0 if safe, 1 if rejected (with reason on stdout).
@@ -132,6 +177,7 @@ is_safe_eval_command() {
         phpstan phpcs phpcbf rector phpunit node npm cat head tail ls
         stat file diff sort uniq git make go sed awk tr cut xargs
         for if while case until '[' set printf echo true false
+        gh
     )
 
     # Reject commands containing dangerous patterns regardless of base
@@ -313,6 +359,10 @@ run_checkpoint() {
     local severity="${5:-error}"
     local desc="${6:-}"
     local fix_skill="${7:-}"
+    # 8th arg: org_provides path (file_exists fallback)
+    local org_provides="${8:-}"
+    # 9th arg: follow_uses flag ("true" enables transitive workflow inspection)
+    local follow_uses="${9:-}"
 
     local status="skip"
     local evidence=""
@@ -352,9 +402,13 @@ run_checkpoint() {
             if $found; then
                 status="pass"
                 evidence="Found: $found_file"
+            elif [[ -n "$org_provides" ]] && check_org_provides "$org_provides"; then
+                status="pass"
+                evidence="Satisfied org-wide via ${GH_OWNER:-?}/.github/${org_provides}"
             else
                 status="fail"
                 evidence="Not found: $target"
+                [[ -n "$org_provides" ]] && evidence="$evidence (org_provides: ${GH_OWNER:-?}/.github/${org_provides} also missing)"
             fi
             ;;
         file_not_exists)
@@ -630,52 +684,36 @@ run_checkpoint() {
                 status="skip"
                 evidence="gh_api checkpoint missing endpoint or json_path"
             else
-                local origin_url owner_repo owner repo resolved_endpoint api_response
-                origin_url=$(git config --get remote.origin.url 2>/dev/null || true)
-                if [[ -z "$origin_url" ]]; then
+                local resolved_endpoint api_response
+                if ! resolve_github_owner; then
                     status="skip"
-                    evidence="No git origin remote configured"
+                    evidence="Cannot resolve github.com owner/repo from local origin remote"
                 else
-                    # Extract owner/repo from origin URL forms:
-                    #   git@github.com:owner/repo.git
-                    #   https://github.com/owner/repo(.git)
-                    #   ssh://git@github.com/owner/repo.git
-                    # Strip optional trailing /.git first so the char class doesn't gobble it.
-                    local stripped_url="${origin_url%/}"
-                    stripped_url="${stripped_url%.git}"
-                    owner_repo=$(echo "$stripped_url" | sed -nE 's|^.*github\.com[:/]+([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)$|\1/\2|p')
-                    if [[ ! "$owner_repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
-                        status="skip"
-                        evidence="Cannot parse github.com owner/repo from origin: $origin_url"
-                    else
-                        owner="${owner_repo%%/*}"
-                        repo="${owner_repo##*/}"
-                        # Resolve and cache {default_branch} once per runner invocation
-                        if [[ -z "${GH_DEFAULT_BRANCH:-}" ]]; then
-                            GH_DEFAULT_BRANCH=$(gh repo view "$owner_repo" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || echo "main")
-                        fi
-                        resolved_endpoint="${target//\{owner\}/$owner}"
-                        resolved_endpoint="${resolved_endpoint//\{repo\}/$repo}"
-                        resolved_endpoint="${resolved_endpoint//\{default_branch\}/$GH_DEFAULT_BRANCH}"
-                        local api_stderr
-                        api_stderr=$(mktemp)
-                        if api_response=$(gh api "$resolved_endpoint" 2>"$api_stderr"); then
-                            if echo "$api_response" | jq -e "$pattern" >/dev/null 2>&1; then
-                                status="pass"
-                                evidence="GitHub API $resolved_endpoint: $pattern truthy"
-                            else
-                                status="fail"
-                                evidence="GitHub API $resolved_endpoint: $pattern is null/false/missing"
-                            fi
-                        else
-                            # Reflect the gh stderr so the user can distinguish 404 vs auth/network failures
-                            local err_msg
-                            err_msg=$(tr -d '\n' <"$api_stderr" | head -c 200)
-                            status="fail"
-                            evidence="GitHub API call failed: $resolved_endpoint — ${err_msg:-no error message}"
-                        fi
-                        rm -f "$api_stderr"
+                    # Resolve and cache {default_branch} once per runner invocation
+                    if [[ -z "${GH_DEFAULT_BRANCH:-}" ]]; then
+                        GH_DEFAULT_BRANCH=$(gh repo view "${GH_OWNER}/${GH_REPO}" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || echo "main")
                     fi
+                    resolved_endpoint="${target//\{owner\}/$GH_OWNER}"
+                    resolved_endpoint="${resolved_endpoint//\{repo\}/$GH_REPO}"
+                    resolved_endpoint="${resolved_endpoint//\{default_branch\}/$GH_DEFAULT_BRANCH}"
+                    local api_stderr
+                    api_stderr=$(mktemp)
+                    if api_response=$(gh api "$resolved_endpoint" 2>"$api_stderr"); then
+                        if echo "$api_response" | jq -e "$pattern" >/dev/null 2>&1; then
+                            status="pass"
+                            evidence="GitHub API $resolved_endpoint: $pattern truthy"
+                        else
+                            status="fail"
+                            evidence="GitHub API $resolved_endpoint: $pattern is null/false/missing"
+                        fi
+                    else
+                        # Reflect the gh stderr so the user can distinguish 404 vs auth/network failures
+                        local err_msg
+                        err_msg=$(tr -d '\n' <"$api_stderr" | head -c 200)
+                        status="fail"
+                        evidence="GitHub API call failed: $resolved_endpoint — ${err_msg:-no error message}"
+                    fi
+                    rm -f "$api_stderr"
                 fi
             fi
             ;;
@@ -901,6 +939,8 @@ current_pattern=""
 current_severity="error"
 current_desc=""
 current_fix_skill=""
+current_org_provides=""
+current_follow_uses=""
 in_mechanical_section=false
 in_llm_section=false
 
@@ -938,7 +978,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^llm_reviews:[[:space:]]*$ ]]; then
         # Process any pending checkpoint before switching sections
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses"
             current_id=""
         fi
         in_mechanical_section=false
@@ -959,7 +999,7 @@ while IFS= read -r line; do
         _new_id="${BASH_REMATCH[1]}"
         # New checkpoint - process previous if exists
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses"
         fi
         current_id="$_new_id"
         current_type=""
@@ -968,6 +1008,8 @@ while IFS= read -r line; do
         current_severity="error"
         current_desc=""
         current_fix_skill=""
+        current_org_provides=""
+        current_follow_uses=""
     elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]*(.+)$ ]]; then
         current_type="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
@@ -1009,6 +1051,14 @@ while IFS= read -r line; do
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*json_path:[[:space:]]*(.+)$ ]]; then
         current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*org_provides:[[:space:]]*\"(.+)\"$ ]]; then
+        current_org_provides="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*org_provides:[[:space:]]*\'(.+)\'$ ]]; then
+        current_org_provides="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*org_provides:[[:space:]]*(.+)$ ]]; then
+        current_org_provides="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*follow_uses:[[:space:]]*(true|false)$ ]]; then
+        current_follow_uses="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*severity:[[:space:]]*(.+)$ ]]; then
         current_severity="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*fix_skill:[[:space:]]*(.+)$ ]]; then
@@ -1022,7 +1072,7 @@ done < "$CHECKPOINT_FILE"
 
 # Process last checkpoint if still in mechanical section
 if [[ -n "$current_id" ]] && $in_mechanical_section; then
-    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
+    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses"
 fi
 
 if ! $JSON_MODE; then
