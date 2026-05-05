@@ -135,7 +135,11 @@ resolve_github_owner() {
 # Check whether the org's .github community-health repo provides a given
 # file (e.g. SECURITY.md, CONTRIBUTING.md). Used as a fallback for
 # file_exists checkpoints with `org_provides:`. Returns 0 (found), 1 (not
-# found / lookup failed). Caches per-(owner,path) in $GH_ORG_PROVIDES_*.
+# found / lookup failed). Caches per-(owner,path) in GH_ORG_PROVIDES_CACHE
+# (associative array, keyed by "${GH_OWNER}/${rel_path}") so org/user names
+# containing `-` or `.` (invalid in bash variable identifiers) don't break
+# `${!varname}` indirection under `set -e`.
+declare -A GH_ORG_PROVIDES_CACHE=()
 check_org_provides() {
     local rel_path="$1"
     resolve_github_owner || return 1
@@ -143,15 +147,15 @@ check_org_provides() {
     if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
         return 1
     fi
-    local cache_key="GH_ORG_PROVIDES_${GH_OWNER}_${rel_path//[^A-Za-z0-9]/_}"
-    local cached="${!cache_key:-}"
+    local cache_key="${GH_OWNER}/${rel_path}"
+    local cached="${GH_ORG_PROVIDES_CACHE[$cache_key]:-}"
     if [[ "$cached" == "yes" ]]; then return 0; fi
     if [[ "$cached" == "no" ]];  then return 1; fi
     if gh api "repos/${GH_OWNER}/.github/contents/${rel_path}" >/dev/null 2>&1; then
-        printf -v "$cache_key" '%s' "yes"
+        GH_ORG_PROVIDES_CACHE["$cache_key"]="yes"
         return 0
     else
-        printf -v "$cache_key" '%s' "no"
+        GH_ORG_PROVIDES_CACHE["$cache_key"]="no"
         return 1
     fi
 }
@@ -204,15 +208,30 @@ expand_follow_uses() {
                     printf '%s\t%s\n' "$cache_key" "$cached_path"
                     continue
                 fi
-                tmpfile=$(mktemp --suffix=.yml)
-                if gh api "repos/${owner_repo}/contents/${path}?ref=${ref}" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null > "$tmpfile" \
+                # `mktemp --suffix=` is GNU-specific; plain `mktemp` works
+                # everywhere. `base64 -d` is also GNU-specific (BSD/macOS
+                # spell it `-D`); fall back to `python3 -m base64 -d` —
+                # python3 is already in the runner whitelist.
+                tmpfile=$(mktemp)
+                local b64file
+                b64file=$(mktemp)
+                if gh api "repos/${owner_repo}/contents/${path}?ref=${ref}" --jq '.content' 2>/dev/null > "$b64file" \
+                    && [[ -s "$b64file" ]] \
+                    && { base64 -d <"$b64file" 2>/dev/null \
+                         || base64 -D <"$b64file" 2>/dev/null \
+                         || python3 -m base64 -d <"$b64file" 2>/dev/null; } > "$tmpfile" \
                     && [[ -s "$tmpfile" ]]; then
                     printf '%s\t%s\n' "$cache_key" "$tmpfile"
                 else
                     rm -f "$tmpfile"
                 fi
+                rm -f "$b64file"
             fi
-        done < <(grep -E '^\s*(- )?\s*uses:' "$local_file" 2>/dev/null || true)
+            # `\s` is not portable in POSIX ERE (`grep -E`) — it matches a
+            # literal `s` on many implementations. Use `[[:space:]]` so
+            # `uses:` lines are detected reliably and `follow_uses` does
+            # not silently no-op.
+        done < <(grep -E '^[[:space:]]*(-[[:space:]]+)?uses:' "$local_file" 2>/dev/null || true)
     done
 }
 
@@ -294,6 +313,36 @@ is_safe_eval_command() {
 
     for acmd in "${allowed_cmds[@]}"; do
         if [[ "$cmd_base" == "$acmd" ]]; then
+            # Restrict `gh` to read-only API queries. Checkpoint YAML can
+            # come from untrusted skill repos; allowing arbitrary `gh`
+            # subcommands would let a checkpoint mutate the repo (`gh repo
+            # edit`, `gh release delete`, `gh api -X DELETE ...`, ...).
+            #
+            # Allowed shape: `gh api <endpoint>` with no explicit
+            # state-changing method (`-X POST|PUT|PATCH|DELETE` /
+            # `--method ...`) and no `--input`/`-f`/`-F` request-body
+            # flags. `gh api` defaults to GET, so a bare `gh api` call
+            # is safe.
+            if [[ "$cmd_base" == "gh" ]]; then
+                local _gh_sub
+                _gh_sub=$(echo "$stripped" | awk '{print $2}')
+                if [[ "$_gh_sub" != "api" ]]; then
+                    echo "'gh $_gh_sub' is not allowed; only 'gh api' (read-only) is permitted"
+                    return 1
+                fi
+                if [[ "$pattern" =~ (^|[[:space:]])(-X|--method)[[:space:]]+(POST|PUT|PATCH|DELETE) ]]; then
+                    echo "'gh api' rejected: state-changing method (-X/--method POST|PUT|PATCH|DELETE)"
+                    return 1
+                fi
+                if [[ "$pattern" =~ (^|[[:space:]])(-X|--method)=(POST|PUT|PATCH|DELETE) ]]; then
+                    echo "'gh api' rejected: state-changing method (-X=/--method=POST|PUT|PATCH|DELETE)"
+                    return 1
+                fi
+                if [[ "$pattern" =~ (^|[[:space:]])(--input|-f|-F)([[:space:]]|=) ]]; then
+                    echo "'gh api' rejected: request-body flags (--input/-f/-F) are not allowed"
+                    return 1
+                fi
+            fi
             return 0
         fi
     done
@@ -423,6 +472,10 @@ run_checkpoint() {
     local org_provides="${8:-}"
     # 9th arg: follow_uses flag ("true" enables transitive workflow inspection)
     local follow_uses="${9:-}"
+    # 10th arg: expect_contains literal/list (gh_api alternative to json_path).
+    # Either a single string, or a YAML/JSON-style inline list:
+    # `["typo3", "php"]` — every element must appear in the API response.
+    local expect_contains="${10:-}"
 
     local status="skip"
     local evidence=""
@@ -596,6 +649,22 @@ run_checkpoint() {
                 files_to_check=("$target")
             fi
 
+            # follow_uses: also inspect any reusable workflow referenced
+            # by `uses:` in the target files. For not_contains, a forbidden
+            # pattern hiding inside a reusable workflow is still a violation,
+            # so the negative check must traverse the same one-hop expansion
+            # the positive `contains` handler does.
+            if [[ "$follow_uses" == "true" ]]; then
+                local _src _tmp
+                while IFS=$'\t' read -r _src _tmp; do
+                    [[ -z "$_tmp" ]] && continue
+                    files_to_check+=("$_tmp")
+                    FOLLOW_USES_CACHE[$_src]="$_tmp"
+                    FOLLOW_USES_SOURCE[$_tmp]="$_src"
+                    FOLLOW_USES_TEMPFILES+=("$_tmp")
+                done < <(expand_follow_uses "${files_to_check[@]}")
+            fi
+
             local offender=""
             for f in "${files_to_check[@]}"; do
                 # `not_contains` is documented as literal string search; use -F
@@ -609,7 +678,12 @@ run_checkpoint() {
 
             if [[ -n "$offender" ]]; then
                 status="fail"
-                evidence="Pattern should not be in $offender"
+                local _src="${FOLLOW_USES_SOURCE[$offender]:-}"
+                if [[ -n "$_src" ]]; then
+                    evidence="Pattern should not be in reusable workflow $_src"
+                else
+                    evidence="Pattern should not be in $offender"
+                fi
             elif [[ ${#files_to_check[@]} -eq 0 ]]; then
                 status="pass"
                 evidence="No target files matched (OK for not_contains): $target"
@@ -728,6 +802,21 @@ run_checkpoint() {
                 files=("$target")
             fi
 
+            # follow_uses: also inspect any reusable workflow referenced
+            # by `uses:` in the target files. As with not_contains, a
+            # forbidden regex hiding inside a reusable workflow is still
+            # a violation.
+            if [[ "$follow_uses" == "true" ]]; then
+                local _src _tmp
+                while IFS=$'\t' read -r _src _tmp; do
+                    [[ -z "$_tmp" ]] && continue
+                    files+=("$_tmp")
+                    FOLLOW_USES_CACHE[$_src]="$_tmp"
+                    FOLLOW_USES_SOURCE[$_tmp]="$_src"
+                    FOLLOW_USES_TEMPFILES+=("$_tmp")
+                done < <(expand_follow_uses "${files[@]}")
+            fi
+
             local found=false
             local checked_file=""
             for f in "${files[@]}"; do
@@ -735,7 +824,12 @@ run_checkpoint() {
                     checked_file="$f"
                     if grep -q${GREP_MODE#-} -- "$pattern" "$f" 2>/dev/null; then
                         found=true
-                        evidence="Pattern found in $f (should be absent)"
+                        local _src="${FOLLOW_USES_SOURCE[$f]:-}"
+                        if [[ -n "$_src" ]]; then
+                            evidence="Pattern found in reusable workflow $_src (should be absent)"
+                        else
+                            evidence="Pattern found in $f (should be absent)"
+                        fi
                         break
                     fi
                 fi
@@ -766,19 +860,22 @@ run_checkpoint() {
         gh_api)
             # Run when gh CLI is available and authenticated. Resolves
             # {owner}/{repo}/{default_branch} from the local origin remote
-            # and tests the response with `jq -e <json_path>`.
+            # and tests the response with either `jq -e <json_path>` or by
+            # asserting every element of `expect_contains` is present in
+            # the raw response body.
             #
             # Field mapping: `endpoint:` is parsed into $target,
-            # `json_path:` into $pattern (set above by the field parser).
+            # `json_path:` into $pattern, `expect_contains:` into
+            # $expect_contains (set above by the field parser).
             if ! command -v gh >/dev/null 2>&1; then
                 status="skip"
                 evidence="gh CLI not available"
             elif ! gh auth status >/dev/null 2>&1; then
                 status="skip"
                 evidence="gh CLI not authenticated (run: gh auth login)"
-            elif [[ -z "$target" || -z "$pattern" ]]; then
+            elif [[ -z "$target" || ( -z "$pattern" && -z "$expect_contains" ) ]]; then
                 status="skip"
-                evidence="gh_api checkpoint missing endpoint or json_path"
+                evidence="gh_api checkpoint missing endpoint or json_path/expect_contains"
             else
                 local resolved_endpoint api_response
                 if ! resolve_github_owner; then
@@ -795,12 +892,45 @@ run_checkpoint() {
                     local api_stderr
                     api_stderr=$(mktemp)
                     if api_response=$(gh api "$resolved_endpoint" 2>"$api_stderr"); then
-                        if echo "$api_response" | jq -e "$pattern" >/dev/null 2>&1; then
-                            status="pass"
-                            evidence="GitHub API $resolved_endpoint: $pattern truthy"
+                        if [[ -n "$pattern" ]]; then
+                            if echo "$api_response" | jq -e "$pattern" >/dev/null 2>&1; then
+                                status="pass"
+                                evidence="GitHub API $resolved_endpoint: $pattern truthy"
+                            else
+                                status="fail"
+                                evidence="GitHub API $resolved_endpoint: $pattern is null/false/missing"
+                            fi
                         else
-                            status="fail"
-                            evidence="GitHub API $resolved_endpoint: $pattern is null/false/missing"
+                            # expect_contains: split inline `[a, b, c]` (or
+                            # comma-separated string) into elements; require
+                            # every element to appear (substring match) in
+                            # the response. Strip surrounding `[]`, quotes,
+                            # and whitespace per element.
+                            local raw="$expect_contains"
+                            raw="${raw#[}"
+                            raw="${raw%]}"
+                            local missing="" elem stripped
+                            local IFS_save="$IFS"
+                            IFS=','
+                            for elem in $raw; do
+                                stripped="$elem"
+                                stripped="${stripped#"${stripped%%[![:space:]]*}"}"
+                                stripped="${stripped%"${stripped##*[![:space:]]}"}"
+                                stripped="${stripped#\"}"; stripped="${stripped%\"}"
+                                stripped="${stripped#\'}"; stripped="${stripped%\'}"
+                                [[ -z "$stripped" ]] && continue
+                                if ! grep -qF -- "$stripped" <<<"$api_response"; then
+                                    missing="${missing:+$missing, }$stripped"
+                                fi
+                            done
+                            IFS="$IFS_save"
+                            if [[ -z "$missing" ]]; then
+                                status="pass"
+                                evidence="GitHub API $resolved_endpoint: contains expected elements"
+                            else
+                                status="fail"
+                                evidence="GitHub API $resolved_endpoint: missing expected element(s): $missing"
+                            fi
                         fi
                     else
                         # Reflect the gh stderr so the user can distinguish 404 vs auth/network failures
@@ -1037,6 +1167,7 @@ current_desc=""
 current_fix_skill=""
 current_org_provides=""
 current_follow_uses=""
+current_expect_contains=""
 in_mechanical_section=false
 in_llm_section=false
 
@@ -1074,7 +1205,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^llm_reviews:[[:space:]]*$ ]]; then
         # Process any pending checkpoint before switching sections
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains"
             current_id=""
         fi
         in_mechanical_section=false
@@ -1095,7 +1226,7 @@ while IFS= read -r line; do
         _new_id="${BASH_REMATCH[1]}"
         # New checkpoint - process previous if exists
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains"
         fi
         current_id="$_new_id"
         current_type=""
@@ -1106,6 +1237,7 @@ while IFS= read -r line; do
         current_fix_skill=""
         current_org_provides=""
         current_follow_uses=""
+        current_expect_contains=""
     elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]*(.+)$ ]]; then
         current_type="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
@@ -1155,6 +1287,11 @@ while IFS= read -r line; do
         current_org_provides="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*follow_uses:[[:space:]]*(true|false)$ ]]; then
         current_follow_uses="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*expect_contains:[[:space:]]*(.+)$ ]]; then
+        # `expect_contains:` is the gh_api alternative to `json_path:`. Store
+        # the raw RHS — the gh_api branch handles `[a, b]` array syntax,
+        # quote stripping and per-element substring matching.
+        current_expect_contains="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*severity:[[:space:]]*(.+)$ ]]; then
         current_severity="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*fix_skill:[[:space:]]*(.+)$ ]]; then
@@ -1168,7 +1305,7 @@ done < "$CHECKPOINT_FILE"
 
 # Process last checkpoint if still in mechanical section
 if [[ -n "$current_id" ]] && $in_mechanical_section; then
-    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses"
+    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains"
 fi
 
 if ! $JSON_MODE; then
