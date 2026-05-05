@@ -953,11 +953,15 @@ while IFS= read -r line; do
 
     # Parse checkpoint fields
     if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*id:[[:space:]]*(.+)$ ]]; then
+        # Capture the new id BEFORE calling run_checkpoint — that function
+        # uses `[[ =~ ]]` internally (e.g. in the gh_api branch), which
+        # clobbers BASH_REMATCH in the parent shell.
+        _new_id="${BASH_REMATCH[1]}"
         # New checkpoint - process previous if exists
         if [[ -n "$current_id" ]]; then
             run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill"
         fi
-        current_id="${BASH_REMATCH[1]}"
+        current_id="$_new_id"
         current_type=""
         current_target=""
         current_pattern=""
