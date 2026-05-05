@@ -614,9 +614,70 @@ run_checkpoint() {
             fi
             ;;
         gh_api)
-            # Skip GitHub API checks in scripted mode - need auth context
-            status="skip"
-            evidence="GitHub API checks require interactive mode"
+            # Run when gh CLI is available and authenticated. Resolves
+            # {owner}/{repo}/{default_branch} from the local origin remote
+            # and tests the response with `jq -e <json_path>`.
+            #
+            # Field mapping: `endpoint:` is parsed into $target,
+            # `json_path:` into $pattern (set above by the field parser).
+            if ! command -v gh >/dev/null 2>&1; then
+                status="skip"
+                evidence="gh CLI not available"
+            elif ! gh auth status >/dev/null 2>&1; then
+                status="skip"
+                evidence="gh CLI not authenticated (run: gh auth login)"
+            elif [[ -z "$target" || -z "$pattern" ]]; then
+                status="skip"
+                evidence="gh_api checkpoint missing endpoint or json_path"
+            else
+                local origin_url owner_repo owner repo resolved_endpoint api_response
+                origin_url=$(git config --get remote.origin.url 2>/dev/null || true)
+                if [[ -z "$origin_url" ]]; then
+                    status="skip"
+                    evidence="No git origin remote configured"
+                else
+                    # Extract owner/repo from origin URL forms:
+                    #   git@github.com:owner/repo.git
+                    #   https://github.com/owner/repo(.git)
+                    #   ssh://git@github.com/owner/repo.git
+                    # Strip optional trailing /.git first so the char class doesn't gobble it.
+                    local stripped_url="${origin_url%/}"
+                    stripped_url="${stripped_url%.git}"
+                    owner_repo=$(echo "$stripped_url" | sed -nE 's|^.*github\.com[:/]+([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)$|\1/\2|p')
+                    if [[ ! "$owner_repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+                        status="skip"
+                        evidence="Cannot parse github.com owner/repo from origin: $origin_url"
+                    else
+                        owner="${owner_repo%%/*}"
+                        repo="${owner_repo##*/}"
+                        # Resolve and cache {default_branch} once per runner invocation
+                        if [[ -z "${GH_DEFAULT_BRANCH:-}" ]]; then
+                            GH_DEFAULT_BRANCH=$(gh repo view "$owner_repo" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null || echo "main")
+                        fi
+                        resolved_endpoint="${target//\{owner\}/$owner}"
+                        resolved_endpoint="${resolved_endpoint//\{repo\}/$repo}"
+                        resolved_endpoint="${resolved_endpoint//\{default_branch\}/$GH_DEFAULT_BRANCH}"
+                        local api_stderr
+                        api_stderr=$(mktemp)
+                        if api_response=$(gh api "$resolved_endpoint" 2>"$api_stderr"); then
+                            if echo "$api_response" | jq -e "$pattern" >/dev/null 2>&1; then
+                                status="pass"
+                                evidence="GitHub API $resolved_endpoint: $pattern truthy"
+                            else
+                                status="fail"
+                                evidence="GitHub API $resolved_endpoint: $pattern is null/false/missing"
+                            fi
+                        else
+                            # Reflect the gh stderr so the user can distinguish 404 vs auth/network failures
+                            local err_msg
+                            err_msg=$(tr -d '\n' <"$api_stderr" | head -c 200)
+                            status="fail"
+                            evidence="GitHub API call failed: $resolved_endpoint — ${err_msg:-no error message}"
+                        fi
+                        rm -f "$api_stderr"
+                    fi
+                fi
+            fi
             ;;
         command)
             # Run the command in a child bash via here-string so that any
@@ -931,6 +992,18 @@ while IFS= read -r line; do
     elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*\"(.+)\"$ ]]; then
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*([^[:space:]].*)$ ]]; then
+        current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*endpoint:[[:space:]]*\"(.+)\"$ ]]; then
+        current_target="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*endpoint:[[:space:]]*\'(.+)\'$ ]]; then
+        current_target="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*endpoint:[[:space:]]*(.+)$ ]]; then
+        current_target="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*json_path:[[:space:]]*\"(.+)\"$ ]]; then
+        current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*json_path:[[:space:]]*\'(.+)\'$ ]]; then
+        current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*json_path:[[:space:]]*(.+)$ ]]; then
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*severity:[[:space:]]*(.+)$ ]]; then
         current_severity="${BASH_REMATCH[1]}"
