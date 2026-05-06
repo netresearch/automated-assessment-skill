@@ -79,3 +79,12 @@ Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-0
 ## Severity
 
 `error` = blocks release, `warning` = recommendation, `info` = optional.
+
+## References
+
+- `references/checkpoints-schema.md` -- Checkpoint YAML schema and types
+- `references/checkpoint-coverage-requirements.md` -- Required coverage categories per skill
+- `references/checkpoint-workflow.md` -- Full assessment workflow with autofix loop
+- `references/dependency-compatibility.md` -- Multi-major-version assessment trigger
+- `references/migration-guide.md` -- Adding checkpoints to existing skills
+- `references/verification-patterns.md` -- Verification patterns and result schemas
