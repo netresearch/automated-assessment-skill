@@ -2,145 +2,212 @@
 
 How **`checkpoint` destination** materializations from `retro-skill` translate into entries in a target skill's `checkpoints.yaml`. This document is the contract between `retro-skill` (which proposes checkpoints) and `automated-assessment-skill` (which defines the YAML schema and the verifier runtime).
 
+**Authoritative schema source:** `references/checkpoints-schema.md`. This document only describes the routing-from-retro contract; field definitions live in the schema reference.
+
 ## When this applies
 
-A friction finding routes to `checkpoint` destination when:
+A friction finding routes to the `checkpoint` destination when **all** of the following hold:
 
-- The rule is **mechanically detectable** (regex, file presence, command exit code)
+- The rule is **mechanically detectable** (regex, file presence, command exit code, JSON/YAML path query)
 - It can be checked **without LLM reasoning**
 - It enforces a **stable, project-scoped or skill-scoped invariant**
 
-If the rule needs context understanding → `skill-update` instead.
-If the rule needs to fire pre-action (e.g. pre-commit) → `harness-artefact` instead.
+If the rule needs context understanding → route to **`llm_reviews`** (see schema §LLM Review Fields). The retro-skill destination is `skill-update` *only* when the change is to the skill's prose, templates, or scripts. LLM-judgable but mechanically expressed rules belong in `llm_reviews:` inside `checkpoints.yaml`, **not** in the mechanical list and **not** as a `skill-update`.
 
-## YAML schema (per `references/checkpoints-schema.md`)
+If the rule needs to fire pre-action (e.g. pre-commit) → `harness-artefact` destination instead.
 
-A learning-derived checkpoint follows the existing schema:
+If the rule depends on environment (PHP project, Node project) → consider `preconditions:` block (schema §Preconditions) rather than a brittle conditional in the check itself.
+
+## YAML schema (canonical reference)
+
+The authoritative schema is in `references/checkpoints-schema.md`. A checkpoint entry has these fields:
 
 ```yaml
-- id: <PREFIX>-<NN>
-  type: file_exists | regex | command
-  target: <path or glob>
-  value: <pattern>          # for regex type
-  pattern: <command>        # for command type
+- id: <PREFIX>-<NN>                   # e.g. AH-22, SR-15, RT-10
+  type: <one of 10 types — see below>
+  target: <path or glob>              # Required for most types; not for `command`
+  pattern: <regex|jq path|yq path|shell command>
   severity: error | warning | info
   desc: "<what the check enforces>"
+  fix_skill: <skill-id>               # Optional; overrides default fix routing
 ```
 
-### ID convention
+### Field names by type
 
-`<PREFIX>` is the target skill's existing checkpoint prefix (e.g. `AH-` for agent-harness, `RT-` for retro). `<NN>` continues that skill's numbering (Level 1: 01-09, Level 2: 10-19, Level 3: 20-29, Level 3+: 30-39).
+| Type | Required | Notes |
+|---|---|---|
+| `file_exists`, `file_not_exists` | `target` | No `pattern` |
+| `contains`, `not_contains` | `target`, `pattern` (literal string) | |
+| `regex`, `regex_not` | `target`, `pattern` (regex) | Field is `pattern:`, NOT `value:` |
+| `json_path` | `target`, `pattern` (jq path expression) | |
+| `yaml_path` | `target`, `pattern` (yq path expression) | |
+| `gh_api` | `endpoint`, plus `expect_contains` or `json_path` | |
+| `command` | `pattern` (the shell command) | No `target` |
 
-`retro-skill` MUST grep the existing `checkpoints.yaml` for the highest used ID in the target level range and assign the next free number. Document the decision in the PR body.
+The historical `value:` field appears in a few older `agent-harness` AH-* entries; the canonical schema uses `pattern:` everywhere. New learning-derived checkpoints MUST use `pattern:` and the schema-canonical names. Don't propagate the `value:` legacy.
 
-### Severity guidance
+## ID convention
+
+`<PREFIX>` is the target skill's existing checkpoint prefix (e.g. `AH-` for `agent-harness`, `SR-` for `skill-repo`, `RT-` for `retro-skill`). `<NN>` is the next free number.
+
+**There is no universal severity→ID-range mapping.** Each skill chooses its own numbering policy:
+
+- Some skills (e.g. `agent-harness`) band IDs by maturity level: 01-09 = Level 1, 10-19 = Level 2, 20-29 = Level 3.
+- Other skills (e.g. `skill-repo`) run a flat sequence (SR-01 through SR-NN) with no level grouping.
+
+`retro-skill` MUST:
+
+1. Inspect the target skill's existing `checkpoints.yaml`.
+2. Identify the numbering convention in use.
+3. Pick the next free ID matching that convention.
+4. Document the choice in the PR body so reviewers see the reasoning.
+
+Format the ID as `<PREFIX>-<NN>` (single hyphen between prefix and number). Don't write `<PREFIX>NN` (no hyphen) or `<PREFIX>--<NN>` (double hyphen).
+
+## Severity guidance
 
 | Severity | When |
 |---|---|
 | `error` | Violation breaks the skill or repo integrity |
 | `warning` | Violation degrades quality but skill still works |
-| `info` | Aspirational / nice-to-have / informational |
+| `info` | Aspirational, nice-to-have, or informational |
 
-Learning-derived checkpoints **default to `warning`** unless the friction caused upstream failure (then `error`) or is purely informational (then `info`).
+Learning-derived checkpoints **default to `warning`** unless:
 
-## Three check types
+- The friction caused upstream failure (CI break, push rejection) → `error`
+- The check is purely informational or optional → `info`
 
-### 1. `file_exists`
+Severity is independent of ID range. Setting severity wrong is a more common failure than picking the wrong ID.
+
+## `fix_skill` field (routing autofix)
 
 ```yaml
-- id: <PREFIX>-NN
-  type: file_exists
-  target: <path or brace-expansion glob>
-  severity: warning
-  desc: "<artefact> must exist for <reason>"
+fix_skill: retro
 ```
 
-Use when: the friction was caused by a missing file (template, hook, doc).
+When present, `fix_skill` overrides the default `skill_id` for autofix routing. Set it when the checkpoint lives in skill A but the fix is owned by skill B.
 
-Example (derived from "PR template missing retro question"):
+For retro-skill-proposed checkpoints, `fix_skill` is usually appropriate when:
+
+- A friction in skill A pointed to a missing convention enforced by skill B
+- E.g. `agent-harness/checkpoints.yaml` has `AH-22: PR template includes retro question` with `fix_skill: retro` (because retro-skill knows how to add the template content)
+
+## `llm_reviews:` routing
+
+A checkpoint that requires LLM judgment lives in `llm_reviews:` (top-level list in `checkpoints.yaml`, not in `mechanical:`). See schema §LLM Review Fields.
+
+Example:
+
+```yaml
+llm_reviews:
+  - id: SR-LLM-01
+    target: skills/skill-repo/SKILL.md
+    prompt: "Does this SKILL.md trigger description include enough specific verbs for an agent to recognize when to invoke it?"
+    severity: warning
+```
+
+retro-skill should propose to `llm_reviews:` (not `mechanical:`) when the friction is "the file says X but should clearly imply Y" — judgment, not pattern matching.
+
+## File structure (complete picture)
+
+A `checkpoints.yaml` is a complete YAML file with this top-level structure (per schema §Full Schema):
+
+```yaml
+version: 1
+skill_id: <skill-name>
+preconditions:                       # Optional gate: skill only applies if these hold
+  - type: file_exists
+    target: ext_emconf.php
+mechanical:                          # List of mechanical checks
+  - id: <PREFIX>-<NN>
+    type: ...
+    ...
+llm_reviews:                         # Optional list of LLM-judged checks
+  - id: <PREFIX>-LLM-<NN>
+    ...
+```
+
+retro-skill MUST APPEND to the existing `mechanical:` (or `llm_reviews:`) list inside the existing file. Don't emit a fragment of YAML with no version/skill_id — that won't parse as a checkpoints file.
+
+## Three common check patterns (with examples)
+
+### `file_exists` — artefact must be present
+
+Use when: friction caused by missing file (template, hook, doc).
+
+```yaml
+- id: AH-23
+  type: file_exists
+  target: "{.claude/hooks/session-end.json,hooks/session-end.json}"
+  severity: info
+  desc: "SessionEnd hook configured (optional)"
+  fix_skill: retro
+```
+
+### `regex` — file must contain a pattern
+
+Use when: file must contain specific content.
+
+```yaml
+- id: SR-NN
+  type: regex
+  target: skills/skill-repo/SKILL.md
+  pattern: "^## When to use this skill"
+  severity: warning
+  desc: "SKILL.md has a 'When to use' section"
+```
+
+### `command` — complex multi-file or scripted check
+
+Use when: the check is conditional or spans multiple files.
+
 ```yaml
 - id: AH-22
-  type: regex
-  target: "{.github/pull_request_template.md,.github/PULL_REQUEST_TEMPLATE/*}"
-  value: "(?i)retro|reusable.*pattern"
+  type: command
+  pattern: "grep -liE '(retro|reusable.*pattern)' .github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE/*.md .gitlab/merge_request_templates/*.md 2>/dev/null | head -1 | grep -q ."
   severity: warning
   desc: "PR/MR template includes retro question for agent-authored work"
+  fix_skill: retro
 ```
 
-### 2. `regex`
-
-```yaml
-- id: <PREFIX>-NN
-  type: regex
-  target: <path>
-  value: <regex pattern>
-  severity: warning
-  desc: "<file> must contain <pattern>"
-```
-
-Use when: the friction was caused by missing or wrong content in a known file.
-
-### 3. `command`
-
-```yaml
-- id: <PREFIX>-NN
-  type: command
-  pattern: "<shell command that exits 0 on pass>"
-  severity: warning
-  desc: "<what the command verifies>"
-```
-
-Use when: the check is more complex than regex (multi-file, conditional, requires parsing).
-
-The command MUST:
-- Exit 0 on pass, non-zero on fail
-- Run quickly (<2s ideally)
-- Have no side effects
-- Be reproducible (no random/time-dependent state)
+The command MUST exit 0 on pass, non-zero on fail, run fast (<2s), have no side effects, and be deterministic (no time/random state).
 
 ## Workflow for retro-skill
 
-When `retro-skill` proposes a `checkpoint` destination:
+When `/retro` proposes a `checkpoint` destination:
 
-1. **Locate target skill's `checkpoints.yaml`** (via discovery → repo URL → clone/worktree)
-2. **Grep existing IDs** in the target level range (warning → 20-29, error → 10-19, etc.)
-3. **Assign next free ID** with appropriate prefix
-4. **Choose check type** (file_exists / regex / command)
-5. **Draft YAML entry** matching this contract
-6. **Include in PR body:**
-   - Friction signal that triggered this
-   - Why this is mechanically checkable (vs needing LLM)
-   - Why this severity level
-   - Why this check type
-7. **Run target skill's verifier** locally to confirm the new checkpoint actually fires for the friction case
-8. **Eval stub:** if the target skill supports evals, include a regression eval
-
-## Eval stub (TDD-style)
-
-When proposing a checkpoint, also include a regression eval if the skill has `evals/`:
-
-```markdown
----
-scenario: regression-AH-22
-trigger: PR template lacks retro question
-expected: AH-22 fires with severity=warning
----
-```
-
-This is the TDD pattern: checkpoint that detects the friction goes in alongside an eval that proves the checkpoint works.
+1. **Locate** target skill's `checkpoints.yaml` (via discovery → repo URL → clone/worktree).
+2. **Read** the existing file: identify `skill_id`, existing IDs, numbering convention.
+3. **Choose** check type from the 10 canonical types (prefer `file_exists`/`contains`/`regex` over `command` when possible).
+4. **Assign** next free ID matching the existing convention.
+5. **Set** severity per guidance above.
+6. **Set** `fix_skill` if the fix is owned by a different skill than the one hosting the checkpoint.
+7. **Draft** the YAML block aligned with `references/checkpoints-schema.md`.
+8. **Append** to `mechanical:` (or `llm_reviews:` if LLM-judged) — do NOT emit a YAML fragment standalone.
+9. **Document** in the PR body: friction signal, why this is mechanically checkable, why this severity, why this type.
+10. **Run** the assessment verifier locally:
+    ```bash
+    # In automated-assessment-skill or via skill's local validator
+    bash skills/automated-assessment/scripts/validate-checkpoints.sh <path-to-checkpoints.yaml>
+    ```
+    Confirm the new entry parses and the new checkpoint actually fires for the friction case.
+11. **Eval stub:** if the target skill supports evals, include a regression eval. The eval format is skill-specific — read the target's existing `evals/` to match its convention.
 
 ## Anti-patterns
 
-- **Too narrow:** Checkpoint that only catches one specific historical case (e.g. matches a unique string). Generalize the regex.
-- **Too broad:** Checkpoint that fires on unrelated content. Tighten the regex.
-- **LLM-needed:** Checkpoint described as "the file should have good prose". That's not mechanical — route to `skill-update`.
-- **Wrong severity:** `error` for a stylistic preference. Use `warning` or `info`.
-- **No eval:** Adding a checkpoint without proving it works. Always smoke-test.
+- **Field name `value:` for regex/contains** — schema uses `pattern:`. Don't perpetuate the legacy.
+- **Severity-to-ID-range mapping** — each skill chooses its own ID policy; don't impose `error → 10-19, warning → 20-29` universally.
+- **Standalone YAML fragments** — checkpoints live inside a `mechanical:` or `llm_reviews:` list within a complete file; retro must append, not emit standalone.
+- **`mechanical:` for LLM-judgable rules** — route to `llm_reviews:` instead.
+- **Too narrow** — checkpoint that matches one historical case (e.g. matches a unique string). Generalize.
+- **Too broad** — checkpoint that fires on unrelated content. Tighten.
+- **Missing `fix_skill`** when the fix lives elsewhere — autofix will route to the wrong skill.
+- **No verification step** — adding a checkpoint without running the verifier locally to prove it fires.
 
 ## See also
 
-- `references/checkpoints-schema.md` — Full YAML schema reference
-- `references/checkpoint-workflow.md` — How verifier runtime processes checkpoints
+- `references/checkpoints-schema.md` — Full YAML schema reference (authoritative; this doc only describes routing)
+- `references/checkpoint-workflow.md` — How the verifier runtime processes checkpoints
 - `references/verification-patterns.md` — Common verification patterns
-- `retro-skill/references/destination-taxonomy.md` — Where this fits in retro's 6 destinations
-- `retro-skill/references/classification-heuristic.md` — Friction → checkpoint mapping
+- [retro-skill destination-taxonomy](https://github.com/netresearch/retro-skill/blob/main/references/destination-taxonomy.md) — Where this fits in retro's 6 destinations
+- [retro-skill classification-heuristic](https://github.com/netresearch/retro-skill/blob/main/references/classification-heuristic.md) — Friction → checkpoint mapping
