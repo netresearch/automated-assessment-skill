@@ -77,19 +77,7 @@ Use the skill's established prefix from `references/migration-guide.md`, or deri
 
 ### Calibration Anchor
 
-For each generated checkpoint, record (in a comment or accompanying note) the **defect class it predicts**:
-
-```yaml
-- id: TYPO3-CGL-01
-  # Predicts: PHP-CS-Fixer violations that block CI green.
-  # Calibration: retire if no real CI break in 6 months of /assess runs.
-  type: command
-  ...
-```
-
-Why: every checkpoint claims to predict something. If you cannot name the defect class in one line, the checkpoint is testing the rule, not the outcome — and will decay into ritual. See `automated-assessment` > Calibration Debt for the audit cadence.
-
-A checkpoint without a predicted defect class is a candidate for `info` severity at most, never `error`.
+Each checkpoint records its predicted defect class and retirement condition as YAML comments. Caps at `info` if missing. See `automated-assessment/references/calibration.md`.
 
 ### LLM Reviews
 
