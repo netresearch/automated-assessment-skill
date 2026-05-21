@@ -80,6 +80,30 @@ Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-0
 
 `error` = blocks release, `warning` = recommendation, `info` = optional.
 
+## Calibration Debt
+
+**Checkpoints are predictions, not verdicts.** A checkpoint that fires error/warning/info is claiming the project is more or less likely to ship a defect. That claim has to be checked against reality periodically, or it decays into ritual.
+
+A checkpoint accumulates **calibration debt** when any of these is true:
+
+- It has never flagged a real defect in N consecutive `/assess` runs (likely redundant — the rule is already enforced upstream, or the failure mode no longer occurs).
+- A real defect shipped that the checkpoint should have caught but didn't (false negative — the rule is too narrow).
+- The checkpoint repeatedly flags issues the team dismisses as noise (false positive — the rule is miscalibrated or context-blind).
+
+### Periodic calibration
+
+Once per release cycle (or quarterly for low-velocity repos), audit checkpoint output against:
+
+- Bugs reported in production since the last audit (would any checkpoint have caught this?)
+- PR review rejections (did a checkpoint that passed correlate with a human reviewer flagging something?)
+- Checkpoint dismissal rate (how often is the user overriding a finding?)
+
+Use `--review` to surface candidates; demote to `info`, retire, or tighten the rule based on findings. The point is not to maximize checkpoint count — it is to keep the ones that still predict something true.
+
+### Anti-pattern: checkpoint ratchet
+
+Adding checkpoints to plug every past defect, never retiring any, until the suite is slow and noisy enough that the team stops reading it. A checkpoint that nobody acts on is worse than no checkpoint — it costs CI time AND trains the team to ignore the report.
+
 ## References
 
 - `references/checkpoints-schema.md` -- Checkpoint YAML schema and types
