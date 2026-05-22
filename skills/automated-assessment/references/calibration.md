@@ -35,7 +35,7 @@ This rule applies at checkpoint *generation* time, via `add-checkpoints`. For ea
   # Predicts: PHP-CS-Fixer violations that block CI green.
   # Calibration: retire if no real CI break in 6 months of /assess runs.
   type: command
-  ...
+  # (other fields omitted)
 ```
 
 Why: every checkpoint claims to predict something. If you cannot name the defect class in one line, the checkpoint is testing the rule, not the outcome — and will decay into ritual. The periodic calibration above has nothing to anchor against without this.
