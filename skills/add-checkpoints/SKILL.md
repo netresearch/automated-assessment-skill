@@ -75,6 +75,10 @@ Use the skill's established prefix from `references/migration-guide.md`, or deri
 - `warning`: "should", "recommended" → suggestion
 - `info`: "consider", "nice to have" → optional
 
+### Calibration Anchor
+
+Each checkpoint records its predicted defect class and retirement condition as YAML comments. Caps at `info` if missing. See `automated-assessment/references/calibration.md`.
+
 ### LLM Reviews
 
 For subjective requirements that can't be mechanically verified:

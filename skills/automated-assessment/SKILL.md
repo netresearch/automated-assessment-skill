@@ -85,6 +85,7 @@ Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-0
 - `references/checkpoints-schema.md` -- Checkpoint YAML schema and types
 - `references/checkpoint-coverage-requirements.md` -- Required coverage categories per skill
 - `references/checkpoint-workflow.md` -- Full assessment workflow with autofix loop
+- `references/calibration.md` -- Calibration debt, audit cadence, anchor at generation time, ratchet anti-pattern
 - `references/dependency-compatibility.md` -- Multi-major-version assessment trigger
 - `references/migration-guide.md` -- Adding checkpoints to existing skills
 - `references/verification-patterns.md` -- Verification patterns and result schemas
