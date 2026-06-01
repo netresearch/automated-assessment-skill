@@ -489,6 +489,14 @@ run_checkpoint() {
                 # Brace expansion - check each alternative
                 eval "local alternatives=($target)"
                 for alt in "${alternatives[@]}"; do
+                    # Bash does NOT expand a single-element brace ({a} stays
+                    # "{a}"), so a one-alternative target like "{.github/workflows}"
+                    # would otherwise be tested literally and never match. Strip
+                    # the braces only for a genuine single element (no commas or
+                    # nested braces) so paths like "{a}/{b}" are left untouched.
+                    if [[ "$alt" =~ ^\{([^,{}]+)\}$ ]]; then
+                        alt="${BASH_REMATCH[1]}"
+                    fi
                     if [[ -f "$alt" ]] || [[ -d "$alt" ]]; then
                         found=true
                         found_file="$alt"
@@ -1296,10 +1304,15 @@ while IFS= read -r line; do
         current_severity="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*fix_skill:[[:space:]]*(.+)$ ]]; then
         current_fix_skill="${BASH_REMATCH[1]}"
+        # Strip leading/trailing quotes so the value doesn't end up double-quoted
+        # in the emitted JSON (e.g. fix_skill: "retro" → "fix_skill":""retro"").
+        # Use a literal single quote ('\'') rather than \x27 — the latter is a
+        # GNU sed extension and is treated literally by BSD/macOS sed.
+        current_fix_skill=$(echo "$current_fix_skill" | sed 's/^["'\'']//; s/["'\'']$//')
     elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*(.+)$ ]]; then
         current_desc="${BASH_REMATCH[1]}"
-        # Strip leading/trailing quotes from desc
-        current_desc=$(echo "$current_desc" | sed 's/^["\x27]//; s/["\x27]$//')
+        # Strip leading/trailing quotes from desc (portable single quote, not \x27)
+        current_desc=$(echo "$current_desc" | sed 's/^["'\'']//; s/["'\'']$//')
     fi
 done < "$CHECKPOINT_FILE"
 
