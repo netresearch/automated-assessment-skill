@@ -83,6 +83,7 @@ Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-0
 ## References
 
 - `references/checkpoints-schema.md` -- Checkpoint YAML schema and types
+- `references/learning-derived-checkpoints.md` -- Retro-to-checkpoint routing contract
 - `references/checkpoint-coverage-requirements.md` -- Required coverage categories per skill
 - `references/checkpoint-workflow.md` -- Full assessment workflow with autofix loop
 - `references/calibration.md` -- Calibration debt, audit cadence, anchor at generation time, ratchet anti-pattern
