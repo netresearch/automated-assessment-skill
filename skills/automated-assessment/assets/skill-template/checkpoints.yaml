@@ -71,9 +71,11 @@ mechanical:
     # successful run on any branch — the scripted runner accepts only
     # single-line patterns without $(...) command substitution, so the
     # default branch is not resolved here; tighten with
-    # ?branch=<your-default-branch> if needed.
+    # ?branch=<your-default-branch> if needed. The `if .workflow_runs[0]`
+    # guard returns false on repos with no runs, so `fromdateiso8601` is
+    # never handed a null (which would abort the filter); no runs -> fails.
     # yamllint disable-line rule:line-length
-    pattern: 'gh api "repos/{owner}/{repo}/actions/runs?status=success&per_page=1" --jq ".workflow_runs[0].updated_at | fromdateiso8601 | (now - .) < 86400" | grep -q true'
+    pattern: 'gh api "repos/{owner}/{repo}/actions/runs?status=success&per_page=1" --jq "if .workflow_runs[0] then (.workflow_runs[0].updated_at | fromdateiso8601 | (now - .) < 86400) else false end" | grep -q true'
     severity: error
     desc: "Repository must have a successful CI run within the last 24 hours"
 
