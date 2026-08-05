@@ -375,3 +375,12 @@ Verify target path is correct. Check if file exists.
 
 ### "No checkpoints found for skill X"
 Skill doesn't have checkpoints.yaml and no override in front matter. Add checkpoints.yaml following the schema in [`references/checkpoints-schema.md`](checkpoints-schema.md).
+
+## Triaging a runner's raw fail counts
+
+Raw `run-checkpoints.sh` fail counts overstate problems — triage before reporting:
+
+- **`command:`-type checkpoints blocked by the runner's safety sandbox** (`Command rejected: … metacharacter`, `'|' not in whitelist`, `'bash' not in allowed command whitelist`) never ran — report them as INDETERMINATE, not failed. Clear them by installing the deps so the equivalent `vendor/bin` tools run, or run where the commands are permitted.
+- **`file_exists` with a brace target that is a directory** fails wrongly — verify by hand before counting it.
+- The runner takes ONE checkpoint file at a time (no `--all`); loop over the newest per-skill file, and let preconditions auto-skip non-applicable skills.
+- **A cancelled batch fabricates findings**: results from a batch that was interrupted mid-run must be discarded wholesale, never partially reported.
