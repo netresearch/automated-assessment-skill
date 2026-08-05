@@ -395,3 +395,7 @@ The validator checks:
 - Valid checkpoint types
 - Unique IDs
 - Severity values
+
+## Checkpoint IDs: next free sequential number, never a temporal prefix
+
+Checkpoint IDs are stable public identifiers — they appear in assessment reports, CI logs, PR descriptions and historical references. Before adding one: `grep -E "^[[:space:]]+- id: <PREFIX>-[0-9]+" checkpoints.yaml`, take the next sequential number (round number for a new thematic group, continued sequence for an extension). Never merge `NEW-`/`TODO-`/`TMP-`/`PLACEHOLDER-` IDs — "new" decays the moment the PR merges while the ID is permanent, and renumbering shipped IDs is follow-up work with breakage risk (happened with `TT-NEW-1..5` on typo3-testing).
