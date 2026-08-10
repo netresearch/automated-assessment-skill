@@ -62,6 +62,10 @@ fi
 # Resolve checkpoint file to absolute path before cd
 CHECKPOINT_FILE="$(cd "$(dirname "$CHECKPOINT_FILE")" && pwd)/$(basename "$CHECKPOINT_FILE")"
 
+# Same reason, for the script's own directory: everything sourced below must be
+# addressed absolutely, because the next line moves the working directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 cd "$PROJECT_ROOT"
 
 # Colors for terminal output (suppressed in --json mode)
@@ -167,11 +171,17 @@ declare -A FOLLOW_USES_CACHE=()
 declare -A FOLLOW_USES_SOURCE=()
 declare -a FOLLOW_USES_TEMPFILES=()
 
+# shellcheck disable=SC2329  # invoked by the EXIT trap below
 cleanup_follow_uses_temps() {
     local f
     for f in "${FOLLOW_USES_TEMPFILES[@]:-}"; do
         [[ -n "$f" && -f "$f" ]] && rm -f "$f"
     done
+    # The EXIT trap's last command decides the script's exit status. With no
+    # temp files the loop ends on a false `[[ -n "" ]]`, and a run where every
+    # checkpoint passed exited 1 — a permanent failure for any caller gating on
+    # the exit code, with a report that said everything was fine.
+    return 0
 }
 trap cleanup_follow_uses_temps EXIT
 
@@ -240,7 +250,7 @@ expand_follow_uses() {
 # hand-copied second implementation would drift.
 # shellcheck source=lib/command-allowlist.sh
 # shellcheck disable=SC1091  # resolved at run time, relative to this script
-source "$(dirname "${BASH_SOURCE[0]}")/lib/command-allowlist.sh"
+source "$SCRIPT_DIR/lib/command-allowlist.sh"
 
 # Results array
 declare -a RESULTS=()
@@ -1249,7 +1259,13 @@ cat << EOF
 }
 EOF
 
-# Exit with error if any failures
+# Exit with error if any failures.
+#
+# The explicit `exit 0` is load-bearing: without it the script ends on the
+# false `[[ ]]` test and inherits ITS status, so a run where everything passed
+# still exited 1. Any caller gating on the exit code saw a permanent failure
+# and could only have concluded the checkpoints were broken.
 if [[ $FAIL_COUNT -gt 0 ]]; then
     exit 1
 fi
+exit 0
