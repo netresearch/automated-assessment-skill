@@ -297,7 +297,10 @@ rationale plausible" — that the command does not make.
 
 An entry that deliberately keeps both halves declares its counterpart, and
 `validate-skill.sh` (skill-repo) then treats it as intentional rather than
-misfiled:
+misfiled. Where the command only *gathers context* for a judgement and decides
+nothing on its own, say so instead of inventing a mechanical twin:
+`# mechanical-counterpart: none (command gathers context; the judgement is the
+checkpoint)`.
 
 ```yaml
 llm_reviews:

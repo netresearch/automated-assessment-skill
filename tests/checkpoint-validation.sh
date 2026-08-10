@@ -106,6 +106,31 @@ check "an invalid severity is reported"  yes "$(grep -q "invalid severity 'somet
 check "a missing required field is reported" yes \
     "$(grep -q "requires 'pattern'" <<<"$out" && echo yes || echo no)"
 
+# --- 4b. the "none (<reason>)" spelling is a valid declaration --------------
+f="$WORK/none.yaml"
+cat > "$f" <<'EOF'
+version: 1
+skill_id: demo
+
+mechanical:
+  - id: DM-07
+    type: file_exists
+    target: README.md
+    severity: info
+    desc: "README"
+
+llm_reviews:
+  # mechanical-counterpart: none (command gathers context; the judgement is the checkpoint)
+  - id: DM-22
+    domain: demo
+    prompt: |
+      git log -1 --format=%H
+    severity: info
+    desc: "context only"
+EOF
+out=$(bash "$VALIDATOR" "$f" 2>&1); rc=$?
+check "a 'none (<reason>)' declaration validates" 0 "$rc"
+
 # --- 5. llm_reviews entries are not treated as mechanical -------------------
 f="$WORK/llm.yaml"
 cat > "$f" <<'EOF'
