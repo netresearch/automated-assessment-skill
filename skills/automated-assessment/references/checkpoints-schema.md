@@ -242,6 +242,39 @@ Run arbitrary command, check exit code:
   severity: error
 ```
 
+**Two constraints decide whether the checkpoint runs at all.** Both are enforced
+by the runner and neither produces a useful failure message on its own, so a
+violating checkpoint reads as a gate while never executing. `validate-checkpoints.sh`
+checks both at authoring time.
+
+**1. `pattern:` must be a single-line scalar.** The runner parses YAML line by
+line, so a block scalar reaches it as the literal `|-`:
+
+```yaml
+pattern: |-                                    # WRONG — the runner receives "|-"
+  test -z "$(git status --porcelain)"
+```
+
+**2. The command must pass the runner's allowlist** (`is_safe_eval_command` in
+`lib/command-allowlist.sh`). The base command must be on the whitelist, and the
+pattern may contain **no** `;`, `&&`, `||`, backticks, `$(...)`, `..`, or a
+`./script` invocation outside `vendor/bin/`. Pipes are allowed.
+
+That rules out loops, command substitution and multi-statement patterns. A check
+that needs them belongs in `scripts/`, and the checkpoint **mirrors** a
+simplified, allowlist-conform version of it rather than calling it — the runner
+cannot invoke repo scripts. Worked examples: `SR-37` in skill-repo mirrors
+`check-version-parity.sh`; `GW-17` in git-workflow narrows a five-commit sweep
+to HEAD because the sweep needs a loop.
+
+```yaml
+pattern: 'test -z "$(git ls-files -- docs/)"'  # WRONG — $( ) is rejected
+pattern: "git ls-files -- docs/ | grep -qv ."  # allowed: pipe, no substitution
+```
+
+Semicolon-free spellings exist for most one-liners — `sed -n -e '/^$/q' -e p`
+does what `sed -n '/^$/q;p'` does.
+
 ## LLM Review Fields
 
 | Field | Required | Description |
@@ -255,6 +288,28 @@ Run arbitrary command, check exit code:
 | `fix_skill` | No | Skill that can fix this checkpoint's failures (overrides `skill_id`) |
 
 *Either `rubric` or `prompt` is required.
+
+**LLM reviews are for what a command cannot decide.** A prompt that opens a line
+with a runnable command is a mechanical check written as prose: nothing executes
+it, and it cannot regress visibly. Move the deciding part to `mechanical:` and
+leave the LLM entry the judgement — "are they all from the same author", "is the
+rationale plausible" — that the command does not make.
+
+An entry that deliberately keeps both halves declares its counterpart, and
+`validate-skill.sh` (skill-repo) then treats it as intentional rather than
+misfiled. Where the command only *gathers context* for a judgement and decides
+nothing on its own, say so instead of inventing a mechanical twin:
+`# mechanical-counterpart: none (command gathers context; the judgement is the
+checkpoint)`.
+
+```yaml
+llm_reviews:
+  # mechanical-counterpart: GW-17
+  - id: GW-21
+    domain: git-workflow
+    prompt: |
+      ...
+```
 
 ### Domain Groups
 
@@ -395,6 +450,13 @@ The validator checks:
 - Valid checkpoint types
 - Unique IDs
 - Severity values
+- `type: command` patterns: single-line scalar, and accepted by the runner's own
+  allowlist (sourced from `lib/command-allowlist.sh`, not reimplemented, so
+  validation and execution cannot disagree)
+
+The last one is the difference between a checkpoint and the appearance of one:
+a pattern the runner rejects never runs, and the assessment report says nothing
+about it.
 
 ## Checkpoint IDs: next free sequential number, never a temporal prefix
 

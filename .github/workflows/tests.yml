@@ -1,0 +1,18 @@
+name: Skill Tests
+
+# Runs this repo's own test suite via the skill-repo-skill reusable. Until it
+# existed, no workflow here ran anything under tests/ — and there was no tests/
+# to run: run-checkpoints.sh and the validator shipped unexercised.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+jobs:
+  tests:
+    uses: netresearch/skill-repo-skill/.github/workflows/tests.yml@main
+    permissions:
+      contents: read

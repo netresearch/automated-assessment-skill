@@ -27,7 +27,7 @@ Analyze a skill and generate appropriate `checkpoints.yaml` for the automated-as
 3. **Extract requirements** — parse SKILL.md for verifiable rules and patterns
 4. **Generate checkpoints** — create `checkpoints.yaml` with mechanical checks and LLM reviews
 5. **Add preconditions** — determine which project types this skill applies to
-6. **Validate** — run `scripts/run-checkpoints.sh` against a sample project to verify
+6. **Validate** — `scripts/validate-checkpoints.sh`, then `run-checkpoints.sh` on a sample project
 7. **Report** — explain what was generated and why, or why checkpoints don't fit
 
 ## Suitability Criteria
@@ -44,7 +44,7 @@ A skill is **NOT suitable** if it only provides:
 - Interactive workflows with no persistent artifacts
 - Runtime behavior patterns (performance, caching strategies)
 
-Report suitability with reasoning so the user can decide.
+Report suitability with reasoning.
 
 ## Checkpoint Generation Rules
 
@@ -81,16 +81,16 @@ Each checkpoint records its predicted defect class and retirement condition as Y
 
 ### LLM Reviews
 
-For subjective requirements that can't be mechanically verified:
+Only for what no command can decide. A prompt opening a line with a command
+belongs in `mechanical`; keep both halves only with `# mechanical-counterpart: <ID>`.
+
 - Code quality judgments → `domain: code-quality`
 - Documentation completeness → `domain: documentation`
 - Architecture decisions → `domain: architecture`
 
-Group by domain, provide clear rubric prompts.
-
 ## Output
 
-Generates `checkpoints.yaml` in the skill's directory following the schema at `references/checkpoints-schema.md`. Also creates a copy in the automated-assessment assets directory.
+Generates `checkpoints.yaml` in the skill's directory (schema: `references/checkpoints-schema.md`), plus a copy in the assets directory.
 
 ## References
 
