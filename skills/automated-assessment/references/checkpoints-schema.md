@@ -347,7 +347,14 @@ one. Three optional fields record who owns the truth a checkpoint enforces:
 provenance: upstream          # authority class, see table
 source: https://docs.example.org/spec/section   # where the rule canonically lives
 verified: 2026-08-14          # when the source was last checked (ISO date)
+learning_id: retro-20260814-example-slug        # provenance chain to the retro finding
 ```
+
+`learning_id` links a checkpoint back to the retro finding that produced it
+(`retro-YYYYMMDD-<slug>`, minted by retro-skill at proposal time; the same id
+appears as a `Learning-Id:` trailer in the materializing commit/PR). It is
+what makes a landed learning traceable end to end — and findable for pruning
+when the rule is later superseded (retro outcome signal D12).
 
 | `provenance` | Meaning | Requirement |
 |---|---|---|
