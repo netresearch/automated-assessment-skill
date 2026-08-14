@@ -30,7 +30,22 @@ The authoritative schema is in `references/checkpoints-schema.md`. A checkpoint 
   severity: error | warning | info
   desc: "<what the check enforces>"
   fix_skill: <skill-id>               # Optional; overrides default fix routing
+  provenance: upstream | org-policy | regression | heuristic  # see below
+  source: <URL / session / issue>     # Where the rule canonically lives or was observed
 ```
+
+**Provenance is mandatory for learning-derived checkpoints.** A retro finding
+becomes an enforced rule the moment it lands here, and an enforced rule without
+a named authority reads as "the standard" to every later maintainer (schema
+§Provenance):
+
+- `regression` — the normal case for retro findings: `source` names the
+  session/issue/PR where the failure was observed.
+- `upstream` / `org-policy` — only when the rule actually restates an external
+  standard or a deliberate org rule; `source` must name it. Never present a
+  locally-invented rule as upstream.
+- `heuristic` — a quality preference with no authority behind it; default
+  `severity: info` and say so in `desc`.
 
 ### Field names by type
 
