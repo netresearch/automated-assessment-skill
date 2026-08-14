@@ -44,6 +44,9 @@ mechanical:
     severity: error                    # error | warning | info
     desc: "README.md must exist"       # Human-readable description
     fix_skill: agent-rules             # Optional: skill that can fix this (overrides skill_id)
+    provenance: upstream               # Optional: authority class (see Provenance)
+    source: https://example.org/spec   # Optional: where the enforced rule canonically lives
+    verified: 2026-08-14               # Optional: when source was last checked
 
   - id: GH-02
     type: contains
@@ -333,6 +336,33 @@ These are the currently supported LLM review domains used for automated assessme
 | `error` | Must fix before release | Blocks release |
 | `warning` | Should fix | Strong recommendation |
 | `info` | Nice to have | Optional improvement |
+
+## Provenance (optional fields, required for new normative rules)
+
+A checkpoint turns a sentence into an enforced rule — and an enforced rule
+without a named authority hardens into "the standard" even when it never was
+one. Three optional fields record who owns the truth a checkpoint enforces:
+
+```yaml
+provenance: upstream          # authority class, see table
+source: https://docs.example.org/spec/section   # where the rule canonically lives
+verified: 2026-08-14          # when the source was last checked (ISO date)
+```
+
+| `provenance` | Meaning | Requirement |
+|---|---|---|
+| `upstream` | Derivable from an official external specification/documentation | `source` URL required; re-verify on drift suspicion |
+| `org-policy` | Deliberate organisational rule, intentionally at or beyond upstream | Name the policy owner or rationale in `desc`/`source` |
+| `regression` | Guards an observed (agent) failure | `source` names the session/issue/PR where the failure occurred |
+| `heuristic` | Quality heuristic, not a normative rule | Default to `severity: info`; must not be presented as an external standard |
+
+Runners ignore unknown fields, so these are metadata-only and backward
+compatible. **New checkpoints that enforce a normative rule (`upstream` /
+`org-policy`) must carry `provenance` and `source`** — see
+`learning-derived-checkpoints.md`. Without provenance, a locally-invented
+heuristic (e.g. a page-length limit) is indistinguishable from an upstream
+standard, and checkpoint + eval + skill text can keep each other green while
+the real standard has moved on (authority drift).
 
 ## Fix Skill Override
 
