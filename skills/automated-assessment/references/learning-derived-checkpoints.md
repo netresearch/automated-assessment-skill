@@ -32,6 +32,7 @@ The authoritative schema is in `references/checkpoints-schema.md`. A checkpoint 
   fix_skill: <skill-id>               # Optional; overrides default fix routing
   provenance: upstream | org-policy | regression | heuristic  # see below
   source: <URL / session / issue>     # Where the rule canonically lives or was observed
+  learning_id: retro-YYYYMMDD-<slug>  # Provenance chain to the retro finding (schema §Provenance)
 ```
 
 **Provenance is mandatory for learning-derived checkpoints.** A retro finding
