@@ -56,6 +56,16 @@ mechanical:
     pattern: 'test -z "$(ls)"'
     severity: error
     desc: "a pattern the allowlist refuses"
+  - id: DM-05
+    type: command
+    pattern: "grep -q \"demo\" README.md"
+    severity: error
+    desc: "a double-quoted pattern with YAML-escaped quotes (issue #52)"
+  - id: DM-06
+    type: command
+    pattern: "test \"a\\\\b\" = 'a\\b'"
+    severity: error
+    desc: "a double-quoted pattern with YAML-escaped backslashes (issue #52)"
 EOF
 
 echo "run-checkpoints.sh"
@@ -78,6 +88,8 @@ check "an existing file passes"          pass "$(status_of DM-01)"
 check "a missing file fails"             fail "$(status_of DM-02)"
 check "a succeeding command passes"      pass "$(status_of DM-03)"
 check "a refused pattern fails"          fail "$(status_of DM-04)"
+check "YAML \\\" in dq pattern decoded"    pass "$(status_of DM-05)"
+check "YAML \\\\ in dq pattern decoded"    pass "$(status_of DM-06)"
 check "the refusal names the reason" yes \
     "$(jq -r '.checkpoints[] | select(.id=="DM-04") | .evidence' <<<"$out" | grep -q 'command-chaining metacharacter' && echo yes || echo no)"
 
