@@ -261,7 +261,16 @@ pattern: |-                                    # WRONG — the runner receives "
 **2. The command must pass the runner's allowlist** (`is_safe_eval_command` in
 `lib/command-allowlist.sh`). The base command must be on the whitelist, and the
 pattern may contain **no** `;`, `&&`, `||`, backticks, `$(...)`, `..`, or a
-`./script` invocation outside `vendor/bin/`. Pipes are allowed.
+`./script` invocation outside `vendor/bin/`. Pipes are allowed. The checks also
+apply to the form your pattern takes after shell expansion, so splicing a
+blocked token together with `${IFS}` is rejected rather than clever.
+
+The allowlist is a blast-radius limiter, not a sandbox — it exists so a careless
+pattern cannot delete a tree or mutate the repo it was asked to inspect. It does
+not contain a determined author: `awk`, `php -r` and `python3` are on the
+whitelist because real checkpoints need them, and each runs arbitrary code. Do
+not treat "it passed the allowlist" as a safety property of a checkpoint, and do
+not report a bypass of it as a vulnerability in the assessed project.
 
 That rules out loops, command substitution and multi-statement patterns. A check
 that needs them belongs in `scripts/`, and the checkpoint **mirrors** a

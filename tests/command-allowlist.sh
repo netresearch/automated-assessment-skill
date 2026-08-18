@@ -78,6 +78,44 @@ verdict reject 'gh api repos/o/r -Fa=b'
 # word boundary, not any dash.
 verdict accept 'gh api search/issues?q=is:open --jq length'
 
+# --- issue #69: expansion reconstructs a blocked token ----------------------
+# `bash <<<` expands and word-splits before argv exists, so an expansion
+# between two halves of a blocked token defeats a check that reads the
+# literal text. Blocked-token checks therefore also run on a form where
+# every expansion is replaced by a space.
+# shellcheck disable=SC2016  # literal ${IFS} is the attack; it must not expand here
+verdict reject 'xargs rm${IFS}-r victimdir'
+# shellcheck disable=SC2016
+verdict reject 'grep x | ${IFS}./evil'
+# shellcheck disable=SC2016
+verdict reject 'cat f |${IFS}sh'
+# shellcheck disable=SC2016
+verdict reject 'find . -name x -exec${IFS}sh -c evil +'
+# A legitimate expansion stays accepted — the rule may not reject `$` or
+# `${` as a class. Both shapes below occur in installed checkpoints.
+# shellcheck disable=SC2016
+verdict accept '[ "$missing" -eq 0 ]'
+# shellcheck disable=SC2016
+verdict accept 'grep -LP default "$f" 2>/dev/null'
+# A `$` that is not an expansion (regex end-anchor) must not be touched.
+verdict accept "grep -rqF 'echo \$' --include='*.php' Classes/"
+
+# --- issue #70: quoted ./script in command position -------------------------
+# A quoted token keeps its quotes through the general checks so that a
+# legitimate `-path './vendor/*'` find argument is not read as a `./X`
+# invocation. That leaves the command position, where the quotes come off.
+verdict reject "grep x | './evil'"
+verdict reject 'grep x | "./evil"'
+verdict reject "'./evil'"
+verdict reject "! './evil'"
+# A command-taking command's first non-flag argument is a command too.
+verdict reject "grep -rl x . | xargs './evil'"
+verdict reject 'grep -rl x . | xargs "./evil"'
+# The estate's quoted glob arguments must survive untouched.
+verdict accept "find . -name '*.go' -not -path './vendor/*' | head -1 | grep -q ."
+verdict accept "find . -path '*/SKILL.md' -not -path './node_modules/*' | head -1 | grep -q ."
+verdict accept './vendor/bin/phpstan analyse'
+
 # Quote/backslash stripping must not manufacture false accepts either:
 # a genuinely harmless quoted argument keeps its verdict.
 verdict accept "grep -q 'a b c' README.md"
