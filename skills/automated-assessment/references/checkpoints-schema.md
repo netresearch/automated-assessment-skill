@@ -261,9 +261,10 @@ pattern: |-                                    # WRONG — the runner receives "
 **2. The command must pass the runner's allowlist** (`is_safe_eval_command` in
 `lib/command-allowlist.sh`). The base command must be on the whitelist, and the
 pattern may contain **no** `;`, `&&`, `||`, backticks, `$(...)`, `..`, or a
-`./script` invocation outside `vendor/bin/`. Pipes are allowed. The checks also
-apply to the form your pattern takes after shell expansion, so splicing a
-blocked token together with `${IFS}` is rejected rather than clever.
+`./script` invocation outside `vendor/bin/`. Pipes are allowed, but each pipe
+segment's command word obeys the same rule as the first. `$IFS` is rejected
+outside single quotes, because splicing it into a blocked token reassembles
+that token after the check has run.
 
 The allowlist is a blast-radius limiter, not a sandbox — it exists so a careless
 pattern cannot delete a tree or mutate the repo it was asked to inspect. It does
