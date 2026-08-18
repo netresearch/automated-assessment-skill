@@ -7,8 +7,105 @@
 # drift, and a checkpoint that passes validation but is rejected at run time
 # is worse than no validation: it reads as a check that runs.
 #
+# WHAT THIS FILTER IS, AND IS NOT (issue #71)
+#
+# It is NOT a sandbox, and it cannot be made into one. The allowlist admits
+# general-purpose interpreters — `php -r`, `python3`, `node`, `awk`, `sed` —
+# because installed checkpoints genuinely need them (`php -r "..."` reads
+# composer.json, `python3 -m unittest` runs a suite, `awk 'BEGIN{...}'`
+# compares versions). Any one of them executes arbitrary code:
+# `awk 'BEGIN{system("...")}'` passes every check below. Removing them would
+# break real checks across the installed skills; keeping them means a
+# determined checkpoint author is not stopped by this file.
+#
+# The trust boundary is INSTALLATION. A skill you install already directs an
+# agent through its SKILL.md; a checkpoint is not the weakest link in that
+# chain. What this filter does is bound the BLAST RADIUS of a checkpoint that
+# is careless rather than hostile — the sweep that would have deleted a tree,
+# the `gh api` call that mutates the repo it was meant to inspect, the
+# `./script` picked up from the project under assessment (which IS third-party
+# code, and the one input here that is genuinely untrusted).
+#
+# So: keep the checks tight and fix the holes that are cheap to fix — a guard
+# that is wrong is worse than none, and each hole found so far was a spelling
+# no author would use by accident. But do not present this filter as
+# containment, do not gate a security claim on it, and do not add a check
+# whose only justification is stopping a malicious author: that one has
+# `awk` and is already past you.
+#
+# KNOWN-OPEN, deliberately (all verified to execute; none is an accident
+# shape, and every attempt to close them rejected legitimate checkpoints —
+# a false reject silently disables a real check, which is the worse failure):
+#
+#   * Expansion splices other than $IFS: `xargs ${x:-rm} -rf dir`,
+#     `xargs r${x}m -rf dir`, `xargs rm$1 -r dir`, `cat f | ${x:-sh}`.
+#     Substituting expansions away and re-scanning catches these, and also
+#     rejects `grep -rq 'rm${IFS}-rf' scripts/` — a checkpoint auditing a
+#     project for this very trick — because bash does not expand inside
+#     single quotes but a text substitution does not know that.
+#   * Traversal spelled through an expansion: `.$1./evil` resolves to
+#     `../evil` with no literal `..` anywhere in the text.
+#   * A wrapper that takes its command after a value-bearing flag:
+#     `timeout 5 ./x`, `nice -n 10 ./x`. The wrapper list itself cannot be
+#     complete either.
+#   * A shell reached through an allowlisted wrapper: `| env sh -c '...'`.
+#     Requiring each pipe segment's command word to be on the whitelist
+#     closes it and rejects `xargs -r -I {} test -e {}`, where `{}` is the
+#     flag's value, not the command.
+#
+# Before "fixing" one of these, re-run tests/command-allowlist.sh AND the
+# estate sweep it documents. Each entry above is a fix that was written,
+# measured against real checkpoints, and reverted.
+#
 # Sourced, never executed.
 
+
+# Remove every single/double quote from a word. Used where bash's own
+# quote removal changes what a token MEANS — in command position, where
+# `'./evil'` executes ./evil — never on arguments, where a quoted
+# `'./vendor/*'` glob must stay distinguishable from an invocation.
+# Split a pattern on `|` at TOP LEVEL only, one segment per line. A `|`
+# inside quotes is data — a jq program, a grep alternation — not a
+# pipeline separator, and splitting blind made `grep -E 'a|b/c'` look
+# like a segment whose command word was `b/c`, rejecting real
+# checkpoints. Patterns cannot contain a newline here (a multi-line
+# scalar never reaches the runner as a command), so newline is a safe
+# record separator.
+split_top_level_pipes() {
+    local s="$1" out="" c insq=0 indq=0 i bs
+    bs=$'\\'
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        # Outside single quotes a backslash escapes the next character,
+        # so the `'\''` idiom (close, literal quote, reopen) leaves the
+        # state where it found it. Tracking this wrong flipped the state
+        # mid-regex and split a `|` that was data — a real checkpoint
+        # scanning for `(sk-|AKIA|ghp_)` was rejected for it.
+        if (( ! insq )) && [[ "$c" == "$bs" ]]; then
+            out+="$c${s:i+1:1}"
+            (( i++ ))
+            continue
+        fi
+        if (( ! indq )) && [[ "$c" == "'" ]]; then
+            insq=$(( 1 - insq ))
+        elif (( ! insq )) && [[ "$c" == '"' ]]; then
+            indq=$(( 1 - indq ))
+        fi
+        if (( ! insq && ! indq )) && [[ "$c" == '|' ]]; then
+            out+=$'\n'
+        else
+            out+="$c"
+        fi
+    done
+    printf '%s' "$out"
+}
+
+strip_quotes() {
+    local s="$1" _sq="'" _dq='"'
+    s=${s//"$_sq"/}
+    s=${s//"$_dq"/}
+    printf '%s' "$s"
+}
 
 # Validate that a command is safe to eval.
 # Uses a whitelist of allowed base commands and rejects dangerous patterns.
@@ -40,6 +137,28 @@ is_safe_eval_command() {
     local normalized="$pattern" _bs
     _bs=$'\\'
     normalized=${normalized//"$_bs"/}
+
+    # `$IFS` is the one expansion whose documented purpose is to produce
+    # a word separator, and splicing it between the halves of a blocked
+    # token reassembles that token after a literal-text check has passed:
+    # `xargs rm${IFS}-r dir` word-splits into [rm][-r][dir] and deletes
+    # the tree, `cat f |${IFS}sh` pipes into a shell (issue #69). Reject
+    # it — and ONLY it. This is not a model of bash expansion and must
+    # not be extended into one: `${x:-rm}`, `r${x}m` and `rm$1` splice
+    # just as well, and the substitute-and-rescan approach that would
+    # catch them mis-fires on legitimate patterns (see the header's
+    # KNOWN-OPEN list). Single-quoted regions are exempt because bash
+    # does not expand inside them: `grep -rq 'rm${IFS}-rf' scripts/` is a
+    # checkpoint INSPECTING a project for this trick, and rejecting it
+    # would silently disable a real check. Mis-pairing a `'` that is
+    # itself inside double quotes only skips the check, never adds a
+    # rejection.
+    local _outside_sq
+    _outside_sq=$(printf '%s' "$normalized" | sed "s/'[^']*'//g")
+    if [[ "$_outside_sq" =~ \$\{?IFS ]]; then
+        echo "pattern splices words with \$IFS"
+        return 1
+    fi
 
     # Whitelist of allowed base commands for checkpoint execution.
     # Includes shell control keywords + builtins — these don't execute
@@ -84,13 +203,95 @@ is_safe_eval_command() {
     # that is NOT `./vendor/bin/...`. This catches a `./X` invocation
     # buried after a pipe, file redirection, etc. — locations that
     # cmd_base does not reach.
+    # `set -f` for both scans below: an unquoted expansion of the pattern
+    # is word splitting, which is wanted, AND pathname expansion, which
+    # is not — with globbing live, `e* './evil'` resolved against the
+    # working directory, so the validator (author's cwd) and the runner
+    # (assessed project's cwd) could reach OPPOSITE verdicts on one
+    # pattern. That divergence is the failure this file exists to
+    # prevent.
+    local _reset_f=1
+    [[ $- == *f* ]] || { set -f; _reset_f=0; }
+
     local tok
     for tok in $normalized; do
         if [[ "$tok" == ./* && "$tok" != ./vendor/bin/* ]]; then
+            (( _reset_f )) || set +f
             echo "pattern contains './${tok#./}'; only ./vendor/bin/* is allowed"
             return 1
         fi
     done
+
+    # The scan above deliberately leaves quotes on, so that a quoted
+    # `-path './vendor/*'` find ARGUMENT is not read as a `./X`
+    # invocation. In command position the quotes carry no such meaning:
+    # bash removes them and executes the word, so `grep x | './evil'`
+    # ran ./evil while the quoted token slipped the scan (issue #70).
+    # So: locate the command word of every `|` segment and check THAT
+    # with quotes removed. `&&`/`||`/`;` need no handling — they are
+    # rejected above, leaving `|` as the only separator that can start a
+    # new command.
+    #
+    # The wrapper list cannot be complete, and a wrapper that takes its
+    # command after a VALUE-bearing flag (`timeout 5 ./x`, `nice -n 10
+    # ./x`) still hides it. See the header's KNOWN-OPEN list.
+    local -a _cmd_takers=(xargs env nohup timeout watch command nice stdbuf setsid ionice chrt taskset flock)
+    local _seg _t _bare _taker _cw _i
+    local -a _segs _toks
+    # Split the RAW pattern, not the backslash-stripped one: the quote
+    # tracker needs the backslashes to recognise an escaped quote.
+    # Newlines first — they are the segment separator below.
+    local _flat="${pattern//$'\n'/ }"
+    mapfile -t _segs < <(split_top_level_pipes "$_flat")
+    for _seg in "${_segs[@]}"; do
+        # shellcheck disable=SC2206  # word splitting is the point; globbing is off
+        _toks=(${_seg#!})
+        _taker=false
+        for (( _i = 0; _i < ${#_toks[@]}; _i++ )); do
+            _bare=$(strip_quotes "${_toks[_i]}")
+            _bare=${_bare//"$_bs"/}
+            # Leading redirections and VAR=value assignments precede the
+            # command word; bash allows both, so skip past them rather
+            # than mistaking one for the command (`| >out './evil'`).
+            [[ "$_bare" == *'>'* || "$_bare" == '<'* ]] && continue
+            [[ "$_bare" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
+            # A wrapper's own flags are not the wrapped command either.
+            $_taker && [[ "$_bare" == -* ]] && continue
+            _cw="$_bare"
+            if [[ "$_cw" == ./* && "$_cw" != ./vendor/bin/* ]]; then
+                (( _reset_f )) || set +f
+                echo "pattern executes './${_cw#./}' in command position; only ./vendor/bin/* is allowed"
+                return 1
+            fi
+            # `$'...'`/`$"..."` can spell a command word in bytes that
+            # quote removal does not reproduce; the gh branch rejects
+            # this class outright and command position is no different.
+            if [[ "${_toks[_i]}" == *'$'\'* || "${_toks[_i]}" == *'$"'* ]]; then
+                (( _reset_f )) || set +f
+                echo "pattern spells a command word with \$'...'/\$\"...\" quoting"
+                return 1
+            fi
+            # `cmd_base` applies the whitelist to the pattern's FIRST
+            # word only, so `grep x | scripts/evil` and `| /bin/dash`
+            # ran a command the same rule forbids in first position.
+            # Same rule, every command word.
+            if [[ "$_cw" != vendor/bin/* && "$_cw" != ./vendor/bin/* && "$_cw" == */* ]]; then
+                (( _reset_f )) || set +f
+                echo "'$_cw' has path prefix; only vendor/bin/* (with optional ./) is allowed"
+                return 1
+            fi
+            if ! $_taker; then
+                for _t in "${_cmd_takers[@]}"; do
+                    [[ "$_cw" == "$_t" ]] && _taker=true && break
+                done
+                # A wrapper's wrapped command is the next command word;
+                # anything else ends this segment's command position.
+                $_taker && continue
+            fi
+            break
+        done
+    done
+    (( _reset_f )) || set +f
 
     # Allow vendor/bin/* paths (with or without leading `./`). Anything
     # else with a path component is rejected — checkpoints may not
@@ -108,10 +309,14 @@ is_safe_eval_command() {
 
     for acmd in "${allowed_cmds[@]}"; do
         if [[ "$cmd_base" == "$acmd" ]]; then
-            # Restrict `gh` to read-only API queries. Checkpoint YAML can
-            # come from untrusted skill repos; allowing arbitrary `gh`
-            # subcommands would let a checkpoint mutate the repo (`gh repo
-            # edit`, `gh release delete`, `gh api -X DELETE ...`, ...).
+            # Restrict `gh` to read-only API queries. An assessment runs
+            # with the operator's gh credentials against the repo under
+            # assessment, so a checkpoint that reaches for a mutating
+            # subcommand (`gh repo edit`, `gh release delete`, `gh api
+            # -X DELETE ...`) writes to a real repo — the highest-blast-
+            # radius accident available here. Not containment (see the
+            # file header): a checkpoint can still shell out via an
+            # allowlisted interpreter.
             #
             # Allowed shape: `gh api <endpoint>` with no explicit
             # state-changing method (`-X POST|PUT|PATCH|DELETE` /
