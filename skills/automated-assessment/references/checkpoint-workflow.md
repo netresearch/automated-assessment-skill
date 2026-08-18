@@ -97,7 +97,7 @@ Collect all results into compliance report:
 
 ```json
 {
-  "project": "netresearch/contexts",
+  "project": "vendor/example-extension",
   "timestamp": "2026-01-30T19:00:00Z",
   "overall_status": "FAIL",
   "summary": {
