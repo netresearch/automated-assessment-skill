@@ -93,6 +93,23 @@ else
     fi
 fi
 
+# Decode the two YAML escape sequences a double-quoted scalar cannot
+# avoid: `\"` (the only way to write a double quote) and `\\` (the only
+# way to write a backslash). Without this, the raw backslash bytes reach
+# the consumer (`bash <<<`, grep, jq) and the command executes garbage
+# — issue #52. `\\` is decoded first so an escaped backslash cannot pair
+# with a following character; other sequences (`\n`, `\t`, ...) pass
+# through unchanged, so a lone `\d` in a regex keeps working. Applied
+# ONLY to values extracted from double-quoted scalars — plain and
+# single-quoted scalars stay byte-identical per YAML semantics.
+decode_yaml_dq_escapes() {
+    local s="$1" dq='"' bs
+    bs=$'\\'
+    s=${s//"$bs$bs"/"$bs"}
+    s=${s//"$bs$dq"/"$dq"}
+    printf '%s' "$s"
+}
+
 # Map skill_id to the slash command that fixes issues
 skill_fix_command() {
     local skill_id="$1"
@@ -1009,7 +1026,7 @@ PRECOND_EOF
             precond_desc=""
             precond_cmd=""
         elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
-            precond_target="${BASH_REMATCH[1]}"
+            precond_target="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
         elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\'(.+)\'$ ]]; then
             precond_target="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*(.+)$ ]]; then
@@ -1017,7 +1034,7 @@ PRECOND_EOF
         elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\'(.+)\'$ ]]; then
             precond_pattern="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\"(.+)\"$ ]]; then
-            precond_pattern="${BASH_REMATCH[1]}"
+            precond_pattern="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
         elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*([^[:space:]].*)$ ]]; then
             precond_pattern="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ ^[[:space:]]*desc:[[:space:]]*\"(.+)\"$ ]]; then
@@ -1154,7 +1171,7 @@ while IFS= read -r line; do
         current_type="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
         # Double-quoted target
-        current_target="${BASH_REMATCH[1]}"
+        current_target="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
     elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\'(.+)\'$ ]]; then
         # Single-quoted target
         current_target="${BASH_REMATCH[1]}"
@@ -1165,8 +1182,9 @@ while IFS= read -r line; do
         # Single-quoted pattern (may contain internal double quotes)
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\"(.+)\"$ ]]; then
-        # Double-quoted pattern (may contain internal single quotes)
-        current_pattern="${BASH_REMATCH[1]}"
+        # Double-quoted pattern (may contain internal single quotes;
+        # `\"`/`\\` escapes are decoded — issue #52)
+        current_pattern="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
     elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*([^[:space:]].*)$ ]]; then
         # Unquoted pattern
         current_pattern="${BASH_REMATCH[1]}"
@@ -1176,23 +1194,23 @@ while IFS= read -r line; do
         # typo3-conformance, enterprise-readiness, agent-harness, github-release).
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*\"(.+)\"$ ]]; then
-        current_pattern="${BASH_REMATCH[1]}"
+        current_pattern="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
     elif [[ "$line" =~ ^[[:space:]]*command:[[:space:]]*([^[:space:]].*)$ ]]; then
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*endpoint:[[:space:]]*\"(.+)\"$ ]]; then
-        current_target="${BASH_REMATCH[1]}"
+        current_target="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
     elif [[ "$line" =~ ^[[:space:]]*endpoint:[[:space:]]*\'(.+)\'$ ]]; then
         current_target="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*endpoint:[[:space:]]*(.+)$ ]]; then
         current_target="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*json_path:[[:space:]]*\"(.+)\"$ ]]; then
-        current_pattern="${BASH_REMATCH[1]}"
+        current_pattern="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
     elif [[ "$line" =~ ^[[:space:]]*json_path:[[:space:]]*\'(.+)\'$ ]]; then
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*json_path:[[:space:]]*(.+)$ ]]; then
         current_pattern="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*org_provides:[[:space:]]*\"(.+)\"$ ]]; then
-        current_org_provides="${BASH_REMATCH[1]}"
+        current_org_provides="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
     elif [[ "$line" =~ ^[[:space:]]*org_provides:[[:space:]]*\'(.+)\'$ ]]; then
         current_org_provides="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*org_provides:[[:space:]]*(.+)$ ]]; then

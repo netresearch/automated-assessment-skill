@@ -278,6 +278,19 @@ pattern: "git ls-files -- docs/ | grep -qv ."  # allowed: pipe, no substitution
 Semicolon-free spellings exist for most one-liners — `sed -n -e '/^$/q' -e p`
 does what `sed -n '/^$/q;p'` does.
 
+**Quoting the scalar.** Prefer a plain or single-quoted scalar — the runner
+passes both through byte-identically. In a **double-quoted** scalar the runner
+decodes exactly the two escapes such a scalar cannot avoid, `\"` → `"` and
+`\\` → `\`; every other backslash sequence (`\d`, `\s`, `\$`, ...) passes
+through unchanged even where real YAML would decode or reject it. So a regex
+backslash in a double-quoted scalar must be written `\\` (standard YAML), and a
+pattern that needs literal double quotes is simplest as a plain scalar:
+
+```yaml
+pattern: "grep -qP '^go \\d+' go.mod"        # double-quoted: \\ becomes \
+pattern: awk '{if ($1 == "x") exit 1}' f     # plain scalar: no escaping at all
+```
+
 ## LLM Review Fields
 
 | Field | Required | Description |

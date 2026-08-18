@@ -56,7 +56,24 @@ mechanical:
     pattern: 'test -z "$(ls)"'
     severity: error
     desc: "a pattern the allowlist refuses"
+  - id: DM-05
+    type: command
+    pattern: "grep -q \"demo\" README.md"
+    severity: error
+    desc: "a double-quoted pattern with YAML-escaped quotes (issue #52)"
+  - id: DM-06
+    type: command
+    pattern: "test \"a\\\\b\" = 'a\\b'"
+    severity: error
+    desc: "a double-quoted pattern with YAML-escaped backslashes (issue #52)"
+  - id: DM-07
+    type: contains
+    target: backslashes.txt
+    pattern: 'a\\b'
+    severity: error
+    desc: "a single-quoted pattern must stay byte-identical (no decode)"
 EOF
+printf 'a\\\\b\n' > "$WORK/proj/backslashes.txt"
 
 echo "run-checkpoints.sh"
 
@@ -78,8 +95,33 @@ check "an existing file passes"          pass "$(status_of DM-01)"
 check "a missing file fails"             fail "$(status_of DM-02)"
 check "a succeeding command passes"      pass "$(status_of DM-03)"
 check "a refused pattern fails"          fail "$(status_of DM-04)"
+check "YAML \\\" in dq pattern decoded"    pass "$(status_of DM-05)"
+check "YAML \\\\ in dq pattern decoded"    pass "$(status_of DM-06)"
+check "sq pattern stays byte-identical"  pass "$(status_of DM-07)"
 check "the refusal names the reason" yes \
     "$(jq -r '.checkpoints[] | select(.id=="DM-04") | .evidence' <<<"$out" | grep -q 'command-chaining metacharacter' && echo yes || echo no)"
+
+# The preconditions parser decodes double-quoted scalars through the same
+# helper but at separate call sites — cover it, or a regression there would
+# silently skip a whole skill while every mechanical-parser test stays green.
+cat > "$WORK/precond.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+preconditions:
+  - type: command
+    pattern: "grep -q \"demo\" README.md"
+
+mechanical:
+  - id: DM-20
+    type: file_exists
+    target: README.md
+    severity: error
+    desc: "runs only if the escaped precondition was decoded"
+EOF
+pout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/precond.yaml" "$WORK/proj" 2>&1 )
+check "dq precondition decoded (not skipped)" pass \
+    "$(jq -r '.checkpoints[]? | select(.id=="DM-20") | .status' <<<"$pout")"
 
 # An all-passing fixture must exit 0, or "exit 1" above would prove nothing.
 cat > "$WORK/clean.yaml" <<'EOF'
