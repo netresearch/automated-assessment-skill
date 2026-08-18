@@ -152,7 +152,7 @@ See `skills/automated-assessment/references/checkpoints-schema.md` for full sche
 
 ```json
 {
-  "project": "netresearch/contexts",
+  "project": "vendor/example-extension",
   "overall_status": "FAIL",
   "summary": {
     "total": 45,
