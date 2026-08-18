@@ -60,6 +60,24 @@ verdict reject 'xargs rm -\r x'
 verdict reject "gh api repos/o/r \$'\\055X' DELETE"
 verdict reject 'gh api repos/o/r $"-X" DELETE'
 
+# gh accepts a short-flag value glued to the flag (`-XDELETE`) or via `=`;
+# match the flag itself, not flag+verb, so no spelling of an explicit
+# method reaches gh (issue #67 follow-up — verified accepted pre-hardening).
+verdict reject 'gh api repos/o/r -XDELETE'
+verdict reject 'gh api repos/o/r -XPOST'
+verdict reject 'gh api repos/o/r -X=PATCH'
+verdict reject 'gh api repos/o/r --method PUT'
+# Request-body flags switch gh api to POST — long aliases and glued short
+# forms included (`--field`/`--raw-field` are the long forms of `-F`/`-f`).
+verdict reject 'gh api repos/o/r --field a=b'
+verdict reject 'gh api repos/o/r --raw-field a=b'
+verdict reject 'gh api repos/o/r -fa=b'
+verdict reject 'gh api repos/o/r -Fa=b'
+# A read-only endpoint with a query string that merely contains letters
+# after a dash must still be accepted — the method guard keys on `-X` at a
+# word boundary, not any dash.
+verdict accept 'gh api search/issues?q=is:open --jq length'
+
 # Quote/backslash stripping must not manufacture false accepts either:
 # a genuinely harmless quoted argument keeps its verdict.
 verdict accept "grep -q 'a b c' README.md"

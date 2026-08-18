@@ -142,16 +142,24 @@ is_safe_eval_command() {
                     echo "'gh api' rejected: '\$' (shell/ANSI-C quoting) not allowed in a read-only api call"
                     return 1
                 fi
-                if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)[[:space:]]+(POST|PUT|PATCH|DELETE) ]]; then
-                    echo "'gh api' rejected: state-changing method (-X/--method POST|PUT|PATCH|DELETE)"
+                # Reject ANY method flag, in any spelling. gh accepts the
+                # value spaced (`-X DELETE`), glued (`-XDELETE`) or with
+                # `=`, so match the flag alone rather than the flag+verb —
+                # `-XGET` glued would otherwise slip a space-anchored
+                # verb check (issue #67 follow-up). `gh api` defaults to
+                # GET and no read-only flag begins `-X`/`--method`, so a
+                # bare match is safe; the estate uses no method flag.
+                if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)([[:space:]]|=|[A-Za-z]) ]]; then
+                    echo "'gh api' rejected: explicit method flag (-X/--method) not allowed; api defaults to GET"
                     return 1
                 fi
-                if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)=(POST|PUT|PATCH|DELETE) ]]; then
-                    echo "'gh api' rejected: state-changing method (-X=/--method=POST|PUT|PATCH|DELETE)"
-                    return 1
-                fi
-                if [[ "$_gh" =~ (^|[[:space:]])(--input|-f|-F)([[:space:]]|=) ]]; then
-                    echo "'gh api' rejected: request-body flags (--input/-f/-F) are not allowed"
+                # Reject ANY request-body flag, in any spelling. These
+                # switch gh api to POST. `-f`/`-F` are the short forms of
+                # `--raw-field`/`--field`; cover the long aliases and the
+                # glued short form (`-fa=b`) the previous space/`=`-anchored
+                # check missed. No read-only flag begins `-f`/`-F`.
+                if [[ "$_gh" =~ (^|[[:space:]])(--input|--field|--raw-field|-f|-F) ]]; then
+                    echo "'gh api' rejected: request-body flags (--input/--field/--raw-field/-f/-F) are not allowed"
                     return 1
                 fi
             fi
