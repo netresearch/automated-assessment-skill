@@ -22,6 +22,25 @@ is_safe_eval_command() {
     local cmd_base
     cmd_base=$(echo "$stripped" | awk '{print $1}')
 
+    # The accepted command runs through `bash <<<`, which removes
+    # backslashes during word expansion — so a `\`-escaped flag or path
+    # separator reaches argv bare while never matching a
+    # whitespace-anchored or substring check on the raw spelling: `\-X`,
+    # `.\.` and `-\r` executed as `-X`, `..` and `-r` (issue #67). Every
+    # argv- or path-level check below (dangerous patterns, `..`, `./X`)
+    # therefore runs on the backslash-stripped text. Quotes are NOT
+    # stripped here: a quoted `-path './vendor/*'` is a legitimate find
+    # argument, and unquoting it would trip the `./X` guard. Operator
+    # checks (`;`, `&&`, backtick, `$(`) stay on the raw pattern — bash
+    # parses operators before expansion, so an expansion-produced `;` is
+    # a literal argument, never a separator. The `gh` branch does its own
+    # stronger normalization (see there), because a quoted flag `'-X'`
+    # DOES reach gh as `-X` and there is no legitimate quoted glob in a
+    # read-only `gh api` call.
+    local normalized="$pattern" _bs
+    _bs=$'\\'
+    normalized=${normalized//"$_bs"/}
+
     # Whitelist of allowed base commands for checkpoint execution.
     # Includes shell control keywords + builtins — these don't execute
     # external commands themselves; the body still runs through the same
@@ -35,7 +54,7 @@ is_safe_eval_command() {
     )
 
     # Reject commands containing dangerous patterns regardless of base
-    if [[ "$pattern" =~ (curl.*\|.*sh|wget.*\|.*sh|eval[[:space:]]|exec[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R|\|[[:space:]]*(ba)?sh) ]]; then
+    if [[ "$normalized" =~ (curl.*\|.*sh|wget.*\|.*sh|eval[[:space:]]|exec[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R|\|[[:space:]]*(ba)?sh) ]]; then
         echo "contains dangerous pattern"
         return 1
     fi
@@ -44,7 +63,7 @@ is_safe_eval_command() {
     # like `vendor/bin/../set` or `./vendor/bin/../../some-script` would
     # otherwise still match the `vendor/bin/*` allow-prefix below while
     # actually resolving outside vendor/bin.
-    if [[ "$pattern" =~ \.\. ]]; then
+    if [[ "$normalized" =~ \.\. ]]; then
         echo "pattern contains '..' path traversal"
         return 1
     fi
@@ -66,7 +85,7 @@ is_safe_eval_command() {
     # buried after a pipe, file redirection, etc. — locations that
     # cmd_base does not reach.
     local tok
-    for tok in $pattern; do
+    for tok in $normalized; do
         if [[ "$tok" == ./* && "$tok" != ./vendor/bin/* ]]; then
             echo "pattern contains './${tok#./}'; only ./vendor/bin/* is allowed"
             return 1
@@ -106,15 +125,32 @@ is_safe_eval_command() {
                     echo "'gh $_gh_sub' is not allowed; only 'gh api' (read-only) is permitted"
                     return 1
                 fi
-                if [[ "$pattern" =~ (^|[[:space:]])(-X|--method)[[:space:]]+(POST|PUT|PATCH|DELETE) ]]; then
+                # The flag checks run on a MORE aggressively normalized
+                # form than the general checks: a quoted `'-X'` or `"-X"`
+                # reaches gh as a bare `-X` (bash removes the quotes), so
+                # the quotes come out here too. That is safe in a
+                # read-only `gh api` call, whose arguments are an
+                # endpoint, flags and a --jq filter — never a quoted
+                # filesystem glob that the general `./X` guard protects.
+                # $'...'/$"..." quoting can still synthesize `-X` from
+                # escapes that no strip reproduces (`$'\055X'`); reject it
+                # as a class here, where it has no legitimate use.
+                local _gh="$normalized" _sq="'" _dq='"'
+                _gh=${_gh//"$_sq"/}
+                _gh=${_gh//"$_dq"/}
+                if [[ "$_gh" == *'$'* ]]; then
+                    echo "'gh api' rejected: '\$' (shell/ANSI-C quoting) not allowed in a read-only api call"
+                    return 1
+                fi
+                if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)[[:space:]]+(POST|PUT|PATCH|DELETE) ]]; then
                     echo "'gh api' rejected: state-changing method (-X/--method POST|PUT|PATCH|DELETE)"
                     return 1
                 fi
-                if [[ "$pattern" =~ (^|[[:space:]])(-X|--method)=(POST|PUT|PATCH|DELETE) ]]; then
+                if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)=(POST|PUT|PATCH|DELETE) ]]; then
                     echo "'gh api' rejected: state-changing method (-X=/--method=POST|PUT|PATCH|DELETE)"
                     return 1
                 fi
-                if [[ "$pattern" =~ (^|[[:space:]])(--input|-f|-F)([[:space:]]|=) ]]; then
+                if [[ "$_gh" =~ (^|[[:space:]])(--input|-f|-F)([[:space:]]|=) ]]; then
                     echo "'gh api' rejected: request-body flags (--input/-f/-F) are not allowed"
                     return 1
                 fi
