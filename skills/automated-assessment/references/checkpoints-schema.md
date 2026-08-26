@@ -274,11 +274,42 @@ not treat "it passed the allowlist" as a safety property of a checkpoint, and do
 not report a bypass of it as a vulnerability in the assessed project.
 
 That rules out loops, command substitution and multi-statement patterns. A check
-that needs them belongs in `scripts/`, and the checkpoint **mirrors** a
-simplified, allowlist-conform version of it rather than calling it — the runner
-cannot invoke repo scripts. Worked examples: `SR-37` in skill-repo mirrors
-`check-version-parity.sh`; `GW-17` in git-workflow narrows a five-commit sweep
-to HEAD because the sweep needs a loop.
+that needs them has two legitimate homes, in ascending order of cost:
+
+**`type: script` — an inline multi-line body.** For logic too small to justify a
+shipped file, the runner accepts a block-scalar body and executes it with bash:
+
+```yaml
+- id: TC-121
+  type: script
+  severity: error
+  desc: "No prohibited execution functions in Classes/"
+  command: |
+    found=$(find Classes/ -name '*.php' -exec grep -lP '(\bexec\s*\(|\bsystem\s*\()' {} + 2>/dev/null)
+    if [ -n "$found" ]; then
+      echo "Prohibited function usage in: $found"
+      exit 1
+    fi
+```
+
+The body runs from a temp file in the project root, so relative paths resolve
+against the assessed project exactly as a one-liner's do. It is screened by
+`is_safe_script_text` (`lib/command-allowlist.sh`) — the `$IFS` splice check and
+the dangerous-pattern list (curl/wget piped into sh, `sudo`, `rm -r`, `mkfs`,
+recursive chmod/chown, ...) apply unchanged. What deliberately does NOT apply is
+the one-liner whitelist and operator ban: `if`, assignments, `$()` and `;` are a
+script's grammar, not smuggling, and per-segment whitelist checks are meaningless
+across lines. That makes `type: script` strictly more capable than
+`type: command` and therefore opt-in by spelling: write it only when a
+single-line allowlist-conform pattern genuinely cannot express the check, prefer
+mirroring (next paragraph) for anything that grows beyond ~10 lines, and expect
+reviewer scrutiny on every script body.
+
+**Mirror into `scripts/`.** A check that needs them belongs in `scripts/`, and
+the checkpoint **mirrors** a simplified, allowlist-conform version of it rather
+than calling it — the runner cannot invoke repo scripts. Worked examples: `SR-37`
+in skill-repo mirrors `check-version-parity.sh`; `GW-17` in git-workflow narrows
+a five-commit sweep to HEAD because the sweep needs a loop.
 
 ```yaml
 pattern: 'test -z "$(git ls-files -- docs/)"'  # WRONG — $( ) is rejected

@@ -871,7 +871,7 @@ run_checkpoint() {
                 fi
             fi
             ;;
-        command)
+        command|script)
             # Run the command in a child bash via here-string so that any
             # `exit` or `set -e` inside the pattern cannot terminate the
             # runner. We use `bash <<<"$pattern"` (rather than `bash -c
@@ -892,6 +892,28 @@ run_checkpoint() {
             if [[ -z "$cmd_text" ]]; then
                 status="fail"
                 evidence="Command rejected: empty pattern (checkpoint likely uses multi-line YAML scalar; use single-line pattern, or put the command in pattern:/target:)"
+            elif [[ "$cmd_text" == *$'\n'* ]]; then
+                # A multi-line body is a script, not a one-liner that grew
+                # newlines: control syntax, assignments and $() are its
+                # grammar, so the single-string analyzer's model does not
+                # apply. Screen it as a script (see lib/command-allowlist.sh)
+                # and run it from a temp file rather than eval/herestring.
+                local script_reason tmp_script
+                if script_reason=$(is_safe_script_text "$cmd_text"); then
+                    tmp_script=$(mktemp "${TMPDIR:-/tmp}/nrllm-assess-script.XXXXXX")
+                    printf '%s\n' "$cmd_text" > "$tmp_script"
+                    if bash "$tmp_script" > /dev/null 2>&1; then
+                        status="pass"
+                        evidence="Script succeeded"
+                    else
+                        status="fail"
+                        evidence="Script failed"
+                    fi
+                    rm -f "$tmp_script"
+                else
+                    status="fail"
+                    evidence="Script rejected: $script_reason"
+                fi
             else
                 local reject_reason
                 if reject_reason=$(is_safe_eval_command "$cmd_text"); then
@@ -1099,7 +1121,40 @@ current_expect_contains=""
 in_mechanical_section=false
 in_llm_section=false
 
+# Block-scalar collection state: set when a `command:|` / `pattern:|` /
+# `target:|` header is seen; subsequent deeper-indented lines join the body.
+collecting_block=false
+block_header_indent=0
+block_body_indent=-1
+block_field=""
+
 while IFS= read -r line; do
+    # Block-scalar body collection must see blank and comment lines first:
+    # inside `command: |`, both are data. A line indented deeper than the
+    # header key joins the body (YAML literal-block rule, first non-blank
+    # body line fixes the strip indent); the first dedent closes it.
+    if $collecting_block; then
+        if [[ -z "${line// }" ]]; then
+            if [[ "$block_field" == "target" ]]; then current_target+=$'\n'; else current_pattern+=$'\n'; fi
+            continue
+        fi
+        local_indent=${line%%[! ]*}
+        local_indent=${#local_indent}
+        if (( local_indent > block_header_indent )); then
+            if (( block_body_indent < 0 )); then
+                block_body_indent=$local_indent
+            fi
+            if [[ "$block_field" == "target" ]]; then
+                current_target+="${line:block_body_indent}"$'\n'
+            else
+                current_pattern+="${line:block_body_indent}"$'\n'
+            fi
+            continue
+        fi
+        collecting_block=false
+        block_body_indent=-1
+    fi
+
     # Skip comments and empty lines
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ -z "${line// }" ]] && continue
@@ -1181,6 +1236,23 @@ while IFS= read -r line; do
     elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\'(.+)\'$ ]]; then
         # Single-quoted pattern (may contain internal double quotes)
         current_pattern="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^([[:space:]]*)(command|pattern|target):[[:space:]]*\|[-+]?[[:space:]]*$ ]]; then
+        # Block-scalar header (literal `|`, optional strip/chomp indicator).
+        # The loop-top collector gathers the deeper-indented body lines into
+        # current_pattern / current_target verbatim; without this branch the
+        # unquoted-scalar catch-alls below capture the bare header "|" as the
+        # whole command — the source of every "'|' not in allowlist"
+        # rejection. Must stay ABOVE those catch-alls.
+        collecting_block=true
+        block_header_indent=$(( ${#BASH_REMATCH[1]} ))
+        block_body_indent=-1
+        if [[ "${BASH_REMATCH[2]}" == "target" ]]; then
+            current_target=""
+            block_field="target"
+        else
+            current_pattern=""
+            block_field="pattern"
+        fi
     elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\"(.+)\"$ ]]; then
         # Double-quoted pattern (may contain internal single quotes;
         # `\"`/`\\` escapes are decoded — issue #52)

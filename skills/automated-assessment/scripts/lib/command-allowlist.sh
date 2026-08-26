@@ -107,6 +107,51 @@ strip_quotes() {
     printf '%s' "$s"
 }
 
+# Static screen for multi-line `type: script` checkpoint bodies.
+#
+# A multi-line body cannot pass is_safe_eval_command, and meaningfully so:
+# that function's model — one base command word, operators as separators —
+# describes a one-liner. `if`/`then`/`fi`, variable assignments and `$()`
+# are not smuggling attempts; they are what a script IS. So a script gets
+# the checks that still mean something on free-form text and skips the ones
+# that do not:
+#
+#   kept:    the $IFS splice check and the dangerous-pattern regex
+#            (curl|sh, sudo, rm -r, ...) — both are text-level signals
+#            whose rationale does not depend on line count.
+#   dropped: the whitelist (a script legitimately uses many commands),
+#            the operator check (; && || ` $( are syntax here), the ./X
+#            and path-prefix scans (a script may cd anywhere).
+#
+# This widens what an authoring-time checkpoint can do, and the file header
+# already states why that is acceptable: the trust boundary is INSTALLATION,
+# and the filter bounds blast radius of carelessness rather than containing
+# malice. `type: script` is an explicit opt-in — an author writes it knowing
+# it runs as a script — which is what separates it from a one-liner quietly
+# growing semicolons until it stops being one.
+# Returns 0 if safe, 1 if rejected (with reason on stdout).
+is_safe_script_text() {
+    local pattern="$1"
+
+    local _outside_sq
+    _outside_sq=$(printf '%s' "$pattern" | sed "s/'[^']*'//g")
+    if [[ "$_outside_sq" =~ \$\{?IFS ]]; then
+        echo "pattern splices words with \$IFS"
+        return 1
+    fi
+
+    # Identical class list to is_safe_eval_command's dangerous-pattern regex,
+    # minus the `\| sh` alternative's pipe spelling: inside a script,
+    # `curl ... | sh` still matches via `curl.*\|.*sh`, and a bare pipeline
+    # into sh on its own line has no pipe before it to match anyway.
+    if [[ "$pattern" =~ (curl[[:space:]].*\|[[:space:]]*(ba)?sh|wget[[:space:]].*\|[[:space:]]*(ba)?sh|eval[[:space:]]|exec[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R) ]]; then
+        echo "contains dangerous pattern"
+        return 1
+    fi
+
+    return 0
+}
+
 # Validate that a command is safe to eval.
 # Uses a whitelist of allowed base commands and rejects dangerous patterns.
 # Returns 0 if safe, 1 if rejected (with reason on stdout).

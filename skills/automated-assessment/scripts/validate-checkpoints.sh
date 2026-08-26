@@ -38,7 +38,7 @@ error()   { echo -e "${RED}ERROR:${NC} $1"; ERRORS=$((ERRORS + 1)); }
 warning() { echo -e "${YELLOW}WARNING:${NC} $1"; WARNINGS=$((WARNINGS + 1)); }
 success() { echo -e "${GREEN}OK:${NC} $1"; }
 
-VALID_TYPES="file_exists file_not_exists contains not_contains regex regex_not json_path yaml_path gh_api command"
+VALID_TYPES="file_exists file_not_exists contains not_contains regex regex_not json_path yaml_path gh_api command script"
 VALID_SEVERITIES="error warning info"
 
 if [[ $# -eq 0 ]]; then
@@ -83,8 +83,14 @@ for FILE in "$@"; do
                 rest="${report#CMD:}"
                 cid="${rest%%	*}"
                 cpat="${rest#*	}"
-                if [[ -z "$cpat" || "$cpat" == "|" || "$cpat" == "|-" || "$cpat" == ">" || "$cpat" == ">-" ]]; then
-                    error "$cid: 'pattern' is a multi-line YAML scalar; the runner reads it line by line and receives '${cpat:-<empty>}' — use a single-line pattern"
+                if [[ -z "$cpat" ]]; then
+                    error "$cid: 'pattern' is empty"
+                elif [[ "$cpat" == "|" || "$cpat" == "|-" || "$cpat" == "|+" || "$cpat" == ">" || "$cpat" == ">-" ]]; then
+                    # The runner collects the block-scalar body and screens it
+                    # with is_safe_script_text at run time; this line-oriented
+                    # validator cannot see the body, so authoring-time checks
+                    # here stop at "the shape is one the runner understands".
+                    warning "$cid: multi-line body — static screening happens at run time (is_safe_script_text), not here"
                 elif ! reason=$(is_safe_eval_command "$cpat"); then
                     error "$cid: the runner will reject this pattern — $reason"
                 fi
@@ -109,6 +115,7 @@ for FILE in "$@"; do
                 emit_missing(id, type)
                 if (type == "") print "ERROR:" id ": no \x27type\x27"
                 else if (index(" " VALID " ", " " type " ") == 0) print "ERROR:" id ": unknown type \x27" type "\x27"
+                else if (type == "script" && !("pattern" in seen_fields) && !("command" in seen_fields) && !("target" in seen_fields)) print "WARNING:" id ": type script needs one of \x27pattern\x27, \x27command\x27, \x27target\x27"
                 if (sev != "" && index(" " SEVS " ", " " sev " ") == 0) print "ERROR:" id ": invalid severity \x27" sev "\x27"
                 if (desc == "") print "WARNING:" id ": no \x27desc\x27 — assessment output will not say what failed"
                 if (type == "command") print "CMD:" id "\t" pat
