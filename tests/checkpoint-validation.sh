@@ -55,7 +55,10 @@ out=$(bash "$VALIDATOR" "$f" 2>&1); rc=$?
 check "a well-formed file passes" 0 "$rc"
 check "it reports the checkpoint count" yes "$(grep -q '2 mechanical checkpoint(s) validated' <<<"$out" && echo yes || echo no)"
 
-# --- 2. a multi-line scalar never reaches the runner as a command -----------
+# --- 2. a block-scalar body is accepted, with a pointer to runtime screening -
+# Since feat/script-checkpoint-type the runner collects the body and screens it
+# with is_safe_script_text; authoring-time validation therefore downgrades the
+# former hard error to a warning that names where the real check lives.
 f=$(cp_file blockscalar <<'EOF'
   - id: DM-03
     type: command
@@ -66,9 +69,9 @@ f=$(cp_file blockscalar <<'EOF'
 EOF
 )
 out=$(bash "$VALIDATOR" "$f" 2>&1); rc=$?
-check "a multi-line pattern is an error" 1 "$rc"
-check "the message names the cause" yes \
-    "$(grep -q "DM-03: 'pattern' is a multi-line YAML scalar" <<<"$out" && echo yes || echo no)"
+check "a block-scalar body is accepted" 0 "$rc"
+check "it warns about runtime screening" yes \
+    "$(grep -q "DM-03: multi-line body — static screening happens at run time" <<<"$out" && echo yes || echo no)"
 
 # --- 3. a pattern the runner's allowlist rejects ----------------------------
 f=$(cp_file chained <<'EOF'
