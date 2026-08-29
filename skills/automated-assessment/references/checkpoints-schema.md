@@ -532,7 +532,7 @@ llm_reviews:
 Run the validator to check your checkpoints.yaml:
 
 ```bash
-~/.claude/skills/automated-assessment/scripts/validate-checkpoints.sh checkpoints.yaml
+${CLAUDE_SKILL_DIR}/scripts/validate-checkpoints.sh checkpoints.yaml
 ```
 
 The validator checks:
