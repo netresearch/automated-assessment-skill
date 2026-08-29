@@ -204,7 +204,7 @@ When `/retro` proposes a `checkpoint` destination:
 10. **Run** the assessment verifier locally:
     ```bash
     # In automated-assessment-skill or via skill's local validator
-    bash skills/automated-assessment/scripts/validate-checkpoints.sh <path-to-checkpoints.yaml>
+    skills/automated-assessment/scripts/validate-checkpoints.sh <path-to-checkpoints.yaml>
     ```
     Confirm the new entry parses and the new checkpoint actually fires for the friction case.
 11. **Eval stub:** if the target skill supports evals, include a regression eval. The eval format is skill-specific — read the target's existing `evals/` to match its convention.
