@@ -27,7 +27,7 @@ Analyze a skill and generate appropriate `checkpoints.yaml` for the automated-as
 3. **Extract requirements** — parse SKILL.md for verifiable rules and patterns
 4. **Generate checkpoints** — create `checkpoints.yaml` with mechanical checks and LLM reviews
 5. **Add preconditions** — determine which project types this skill applies to
-6. **Validate** — `scripts/validate-checkpoints.sh`, then `run-checkpoints.sh` on a sample project
+6. **Validate** — `../automated-assessment/scripts/validate-checkpoints.sh`, then `../automated-assessment/scripts/run-checkpoints.sh` on a sample project
 7. **Report** — explain what was generated and why, or why checkpoints don't fit
 
 ## Suitability Criteria
@@ -67,7 +67,7 @@ Derive from the skill's scope:
 
 ### ID Convention
 
-Use the skill's established prefix from `references/migration-guide.md`, or derive a 2-letter prefix from the skill name.
+Use the skill's established prefix from `../automated-assessment/references/migration-guide.md`, or derive a 2-letter prefix from the skill name.
 
 ### Severity Assignment
 
@@ -90,10 +90,10 @@ belongs in `mechanical`; keep both halves only with `# mechanical-counterpart: <
 
 ## Output
 
-Generates `checkpoints.yaml` in the skill's directory (schema: `references/checkpoints-schema.md`), plus a copy in the assets directory.
+Generates `checkpoints.yaml` in the skill's directory (schema: `../automated-assessment/references/checkpoints-schema.md`), plus a copy in the assets directory.
 
 ## References
 
-- Schema: `references/checkpoints-schema.md`
-- Migration guide: `references/migration-guide.md`
+- Schema: `../automated-assessment/references/checkpoints-schema.md`
+- Migration guide: `../automated-assessment/references/migration-guide.md`
 - Existing checkpoints: `assets/*-checkpoints.yaml` (as examples)
