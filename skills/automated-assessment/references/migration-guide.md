@@ -148,7 +148,7 @@ llm_reviews:
 Run the checkpoint runner on a test project:
 
 ```bash
-~/.claude/skills/automated-assessment/scripts/run-checkpoints.sh \
+bash ${CLAUDE_SKILL_DIR}/scripts/run-checkpoints.sh \
   /path/to/your/skill/checkpoints.yaml \
   /path/to/test/project
 ```

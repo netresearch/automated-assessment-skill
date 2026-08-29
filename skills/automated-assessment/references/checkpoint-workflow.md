@@ -75,7 +75,7 @@ This prevents irrelevant skills from producing false negatives (e.g., TYPO3 chec
 For each mechanical checkpoint (in skills that passed preconditions):
 
 ```bash
-scripts/run-checkpoints.sh <checkpoint-file.yaml> <project-root>
+bash ${CLAUDE_SKILL_DIR}/scripts/run-checkpoints.sh <checkpoint-file.yaml> <project-root>
 ```
 
 This runs all `file_exists`, `contains`, `regex`, etc. checks without any LLM involvement.

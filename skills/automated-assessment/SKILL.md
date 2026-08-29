@@ -7,7 +7,7 @@ metadata:
   author: Netresearch DTT GmbH
   version: "2.16.0"
   repository: https://github.com/netresearch/automated-assessment-skill
-allowed-tools: Bash(bash:*) Bash(jq:*) Bash(gh:*) Read Glob Grep Agent
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/*) Bash(bash ${CLAUDE_SKILL_DIR}/scripts/*) Bash(bash skills/automated-assessment/scripts/*) Bash(jq:*) Bash(gh:*) Read Glob Grep Agent
 ---
 
 # Automated Assessment Skill

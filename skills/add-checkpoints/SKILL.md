@@ -27,7 +27,7 @@ Analyze a skill and generate appropriate `checkpoints.yaml` for the automated-as
 3. **Extract requirements** — parse SKILL.md for verifiable rules and patterns
 4. **Generate checkpoints** — create `checkpoints.yaml` with mechanical checks and LLM reviews
 5. **Add preconditions** — determine which project types this skill applies to
-6. **Validate** — `../automated-assessment/scripts/validate-checkpoints.sh`, then `../automated-assessment/scripts/run-checkpoints.sh` on a sample project
+6. **Validate** — `${CLAUDE_PLUGIN_ROOT}/skills/automated-assessment/scripts/validate-checkpoints.sh`, then `${CLAUDE_PLUGIN_ROOT}/skills/automated-assessment/scripts/run-checkpoints.sh` on a sample project
 7. **Report** — explain what was generated and why, or why checkpoints don't fit
 
 ## Suitability Criteria
