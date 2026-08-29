@@ -26,12 +26,18 @@ jobs:
         grep -q "^mechanical:" "$f" || { echo "Missing mechanical section in template"; exit 1; }
         echo "Template checkpoint valid"
 
-        echo "=== Validating SKILL.md word counts ==="
+        echo "=== Validating SKILL.md body size ==="
+        # The word cap this step used to enforce was retired in
+        # netresearch/skill-repo-skill 5de586c (2026-08-21) and replaced by a
+        # 500-body-line cap. Counting words over the whole file also charged
+        # frontmatter to a budget meant for the body: a longer allowed-tools
+        # line alone failed this job in #82 with no prose added.
+        # Same formula as validate-skill.sh, which is the authority.
         for f in skills/*/SKILL.md; do
-          words=$(wc -w < "$f")
-          if [ "$words" -gt 500 ]; then
-            echo "ERROR: $f is $words words (max 500)"
+          lines=$(awk 'BEGIN{d=0} /^---$/{d++; next} d>=2{print}' "$f" | wc -l)
+          if [ "$lines" -gt 500 ]; then
+            echo "ERROR: $f body is $lines lines (max 500) - move reference material into references/"
             exit 1
           fi
-          echo "OK: $f ($words words)"
+          echo "OK: $f ($lines body lines)"
         done
