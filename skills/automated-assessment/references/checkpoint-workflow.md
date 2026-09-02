@@ -114,7 +114,7 @@ Collect all results into compliance report:
 }
 ```
 
-A fifth status exists alongside `pass`/`fail`/`skip`: **`blocked`** — the
+A fourth status exists alongside `pass`/`fail`/`skip`: **`blocked`** — the
 runner refused the checkpoint's command through its allowlist, so nothing was
 measured. Never report a `blocked` checkpoint as a finding; it is a defect in
 the checkpoint file, and `validate-checkpoints.sh` reproduces it at authoring

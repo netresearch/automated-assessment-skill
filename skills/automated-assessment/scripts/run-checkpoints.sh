@@ -995,6 +995,13 @@ json_escape() {
     _dq='"'
     s=${s//"$_bs"/"$_bs$_bs"}
     s=${s//"$_dq"/"$_bs$_dq"}
+    # JSON forbids a literal control character inside a string, so escaping only
+    # backslash and quote still emits invalid JSON for a multi-line command body
+    # or an evidence string carrying a tab -- which is exactly what a `pattern: |`
+    # block and a grep hit produce.
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
     printf '%s' "$s"
 }
 
