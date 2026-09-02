@@ -28,6 +28,13 @@
 #   - Glob patterns: Classes/**/*.php
 #   - Preconditions: gate entire skill before any checks run
 #   - --ignore-preconditions/--force: bypass precondition checks
+#   - command text under `pattern:`, `command:` or `target:`, as a single-line
+#     scalar, a literal block (`|`, run as a script) or a folded block (`>`,
+#     folded to one line first)
+#
+# Outcomes: pass | fail | skip | blocked. `blocked` means the allowlist refused
+# the command, so nothing was measured — a defect in the checkpoint, never a
+# finding about the project, and never a reason to exit non-zero.
 
 set -euo pipefail
 
@@ -274,6 +281,14 @@ declare -a RESULTS=()
 PASS_COUNT=0
 FAIL_COUNT=0
 SKIP_COUNT=0
+# `blocked` — the runner's allowlist refused the command, so it never ran.
+# Reporting that as a failure was wrong and expensive: in one estate-wide audit
+# 68 checkpoints were refused, 39 of which PASSED once run outside the sandbox,
+# and the refusals were read as real findings about the assessed projects. A
+# refused command produces no evidence in either direction; it is a defect in
+# the CHECKPOINT, not in the project. See references/checkpoints-schema.md
+# ("Outcomes").
+BLOCK_COUNT=0
 SKILL_ID=""
 SCHEMA_VERSION=1
 
@@ -890,8 +905,8 @@ run_checkpoint() {
                 cmd_text="$target"
             fi
             if [[ -z "$cmd_text" ]]; then
-                status="fail"
-                evidence="Command rejected: empty pattern (checkpoint likely uses multi-line YAML scalar; use single-line pattern, or put the command in pattern:/target:)"
+                status="blocked"
+                evidence="Command rejected: empty pattern (no pattern:/command:/target: value on this checkpoint)"
             elif [[ "$cmd_text" == *$'\n'* ]]; then
                 # A multi-line body is a script, not a one-liner that grew
                 # newlines: control syntax, assignments and $() are its
@@ -911,7 +926,7 @@ run_checkpoint() {
                     fi
                     rm -f "$tmp_script"
                 else
-                    status="fail"
+                    status="blocked"
                     evidence="Script rejected: $script_reason"
                 fi
             else
@@ -925,7 +940,7 @@ run_checkpoint() {
                         evidence="Command failed"
                     fi
                 else
-                    status="fail"
+                    status="blocked"
                     evidence="Command rejected: $reject_reason"
                 fi
             fi
@@ -938,9 +953,10 @@ run_checkpoint() {
 
     # Update counts
     case "$status" in
-        pass) ((PASS_COUNT++)) || true ;;
-        fail) ((FAIL_COUNT++)) || true ;;
-        skip) ((SKIP_COUNT++)) || true ;;
+        pass)    ((PASS_COUNT++))  || true ;;
+        fail)    ((FAIL_COUNT++))  || true ;;
+        skip)    ((SKIP_COUNT++))  || true ;;
+        blocked) ((BLOCK_COUNT++)) || true ;;
     esac
 
     # Terminal output (suppressed in --json mode)
@@ -949,6 +965,7 @@ run_checkpoint() {
             pass) echo -e "${GREEN}✓${NC} [$id] $desc" ;;
             fail) echo -e "${RED}✗${NC} [$id] $desc - $evidence" ;;
             skip) echo -e "${YELLOW}○${NC} [$id] $desc - SKIPPED" ;;
+            blocked) echo -e "${BLUE}⊘${NC} [$id] $desc - BLOCKED (no evidence either way): $evidence" ;;
         esac
     fi
 
@@ -969,6 +986,59 @@ if ! $JSON_MODE; then
 fi
 
 # === Precondition evaluation ===
+# Escape a string for embedding in a JSON string literal. The precondition
+# reason carries the command text verbatim, and a `"` in it produced invalid
+# JSON for every consumer downstream.
+json_escape() {
+    local s="$1" _bs _dq
+    _bs=$'\\'
+    _dq='"'
+    s=${s//"$_bs"/"$_bs$_bs"}
+    s=${s//"$_dq"/"$_bs$_dq"}
+    # JSON forbids a literal control character inside a string, so escaping only
+    # backslash and quote still emits invalid JSON for a multi-line command body
+    # or an evidence string carrying a tab -- which is exactly what a `pattern: |`
+    # block and a grep hit produce.
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
+# Evaluate a `type: command` precondition. Sets precond_reject to the
+# allowlist's reason when the command was REFUSED rather than run: a refused
+# precondition gates the whole skill out of the assessment, and reporting that
+# as "precondition failed" reads as "this skill does not apply to the project"
+# when the truth is that nothing was measured. Same misread as the `blocked`
+# status, one level up.
+precond_reject=""
+eval_precondition_command() {
+    precond_reject=""
+    precond_cmd="${precond_pattern:-$precond_target}"
+    if [[ -z "$precond_cmd" ]]; then
+        precond_reject="no pattern/target value"
+        return 1
+    fi
+    local reason
+    if ! reason=$(is_safe_eval_command "$precond_cmd"); then
+        precond_reject="$reason"
+        return 1
+    fi
+    bash <<<"$precond_cmd" > /dev/null 2>&1
+}
+
+# Build the reason string for a failed precondition, naming an allowlist
+# refusal as what it is.
+precond_reason_text() {
+    local ptype="$1" detail="$2"
+    if [[ -n "$precond_reject" ]]; then
+        printf 'precondition command REFUSED by the runner allowlist (%s) — checkpoint defect, not a project finding: %s' \
+            "$precond_reject" "$detail"
+    else
+        printf 'precondition failed: %s %s' "$ptype" "$detail"
+    fi
+}
+
 # Parse preconditions: section and check each one before running mechanical checks
 if ! $IGNORE_PRECONDITIONS; then
     precond_type=""
@@ -1023,10 +1093,7 @@ if ! $IGNORE_PRECONDITIONS; then
                         if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
                         ;;
                     command)
-                        precond_cmd="${precond_pattern:-$precond_target}"
-                        if [[ -n "$precond_cmd" ]] && is_safe_eval_command "$precond_cmd" > /dev/null 2>&1; then
-                            if bash -c "$precond_cmd" > /dev/null 2>&1; then precond_ok=true; fi
-                        fi
+                        if eval_precondition_command; then precond_ok=true; fi
                         ;;
                 esac
 
@@ -1035,9 +1102,10 @@ if ! $IGNORE_PRECONDITIONS; then
                     if [[ -n "$precond_desc" ]]; then
                         precond_detail="$precond_detail — $precond_desc"
                     fi
-                    if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_detail)${NC}"; fi
+                    precond_reason="$(precond_reason_text "$precond_type" "$precond_detail")"
+                    if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: $precond_reason${NC}"; fi
                     cat << PRECOND_EOF
-{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_detail"}
+{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "$(json_escape "$precond_reason")"}
 PRECOND_EOF
                     exit 0
                 fi
@@ -1085,10 +1153,7 @@ PRECOND_EOF
                 if [[ -f "$precond_target" ]] && jq -e "$precond_pattern" "$precond_target" > /dev/null 2>&1; then precond_ok=true; fi
                 ;;
             command)
-                precond_cmd="${precond_pattern:-$precond_target}"
-                if [[ -n "$precond_cmd" ]] && is_safe_eval_command "$precond_cmd" > /dev/null 2>&1; then
-                    if bash <<<"$precond_cmd" > /dev/null 2>&1; then precond_ok=true; fi
-                fi
+                if eval_precondition_command; then precond_ok=true; fi
                 ;;
         esac
 
@@ -1097,9 +1162,10 @@ PRECOND_EOF
             if [[ -n "$precond_desc" ]]; then
                 precond_detail="$precond_detail — $precond_desc"
             fi
-            if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: precondition failed ($precond_type: $precond_detail)${NC}"; fi
+            precond_reason="$(precond_reason_text "$precond_type" "$precond_detail")"
+            if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: $precond_reason${NC}"; fi
             cat << PRECOND_EOF
-{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "precondition failed: $precond_type $precond_detail"}
+{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "$(json_escape "$precond_reason")"}
 PRECOND_EOF
             exit 0
         fi
@@ -1121,12 +1187,35 @@ current_expect_contains=""
 in_mechanical_section=false
 in_llm_section=false
 
-# Block-scalar collection state: set when a `command:|` / `pattern:|` /
-# `target:|` header is seen; subsequent deeper-indented lines join the body.
+# Block-scalar collection state: set when a `command:` / `pattern:` /
+# `target:` header carrying `|` or `>` is seen; subsequent deeper-indented
+# lines join the body.
 collecting_block=false
 block_header_indent=0
 block_body_indent=-1
 block_field=""
+block_fold=false
+
+# Close an open block scalar. A FOLDED body (`>`) is one logical line and is
+# folded here (fold_yaml_block, lib/command-allowlist.sh); a LITERAL body (`|`)
+# keeps its newlines and reaches the runner as a script.
+#
+# Called from two places, and both are load-bearing: the dedent line inside the
+# parse loop, and end-of-file — the last checkpoint in a file has no dedent line
+# after it, so without the EOF call its body would never be folded.
+close_block_scalar() {
+    $collecting_block || return 0
+    collecting_block=false
+    block_body_indent=-1
+    if $block_fold; then
+        if [[ "$block_field" == "target" ]]; then
+            current_target="$(fold_yaml_block "$current_target")"
+        else
+            current_pattern="$(fold_yaml_block "$current_pattern")"
+        fi
+    fi
+    block_fold=false
+}
 
 while IFS= read -r line; do
     # Block-scalar body collection must see blank and comment lines first:
@@ -1151,8 +1240,7 @@ while IFS= read -r line; do
             fi
             continue
         fi
-        collecting_block=false
-        block_body_indent=-1
+        close_block_scalar
     fi
 
     # Skip comments and empty lines
@@ -1224,6 +1312,36 @@ while IFS= read -r line; do
         current_expect_contains=""
     elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]*(.+)$ ]]; then
         current_type="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^([[:space:]]*)(command|pattern|target):[[:space:]]*([|>])[-+]?[[:space:]]*$ ]]; then
+        # Block-scalar header: literal `|` or folded `>`, with the optional
+        # chomping indicator. The loop-top collector gathers the deeper-indented
+        # body lines; close_block_scalar folds them when the indicator was `>`.
+        #
+        # This branch MUST stay above every unquoted-scalar catch-all below.
+        # It used to sit after the `target:` catch-alls, which meant a
+        # `target: |` header was captured as the literal string "|" and every
+        # body line was dropped — github-project's GH-31, GH-33 and GH-35 all
+        # reported `Command rejected: '|' not in allowed command whitelist`
+        # while looking, in the file, like ordinary working checkpoints.
+        # Folded `>` was not recognised for any key at all (typo3-docs TD-05,
+        # agent-harness AH-36 reached the allowlist as the literal ">-").
+        _block_key="${BASH_REMATCH[2]}"
+        _block_ind="${BASH_REMATCH[3]}"
+        collecting_block=true
+        block_header_indent=$(( ${#BASH_REMATCH[1]} ))
+        block_body_indent=-1
+        if [[ "$_block_ind" == ">" ]]; then
+            block_fold=true
+        else
+            block_fold=false
+        fi
+        if [[ "$_block_key" == "target" ]]; then
+            current_target=""
+            block_field="target"
+        else
+            current_pattern=""
+            block_field="pattern"
+        fi
     elif [[ "$line" =~ ^[[:space:]]*target:[[:space:]]*\"(.+)\"$ ]]; then
         # Double-quoted target
         current_target="$(decode_yaml_dq_escapes "${BASH_REMATCH[1]}")"
@@ -1236,23 +1354,6 @@ while IFS= read -r line; do
     elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\'(.+)\'$ ]]; then
         # Single-quoted pattern (may contain internal double quotes)
         current_pattern="${BASH_REMATCH[1]}"
-    elif [[ "$line" =~ ^([[:space:]]*)(command|pattern|target):[[:space:]]*\|[-+]?[[:space:]]*$ ]]; then
-        # Block-scalar header (literal `|`, optional strip/chomp indicator).
-        # The loop-top collector gathers the deeper-indented body lines into
-        # current_pattern / current_target verbatim; without this branch the
-        # unquoted-scalar catch-alls below capture the bare header "|" as the
-        # whole command — the source of every "'|' not in allowlist"
-        # rejection. Must stay ABOVE those catch-alls.
-        collecting_block=true
-        block_header_indent=$(( ${#BASH_REMATCH[1]} ))
-        block_body_indent=-1
-        if [[ "${BASH_REMATCH[2]}" == "target" ]]; then
-            current_target=""
-            block_field="target"
-        else
-            current_pattern=""
-            block_field="pattern"
-        fi
     elif [[ "$line" =~ ^[[:space:]]*pattern:[[:space:]]*\"(.+)\"$ ]]; then
         # Double-quoted pattern (may contain internal single quotes;
         # `\"`/`\\` escapes are decoded — issue #52)
@@ -1310,6 +1411,11 @@ while IFS= read -r line; do
     fi
 done < "$CHECKPOINT_FILE"
 
+# A block scalar that runs to the end of the file has no dedent line to close
+# it — fold it here, or the file's last checkpoint would be the one shape this
+# parser still got wrong.
+close_block_scalar
+
 # Process last checkpoint if still in mechanical section
 if [[ -n "$current_id" ]] && $in_mechanical_section; then
     run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains"
@@ -1317,17 +1423,24 @@ fi
 
 if ! $JSON_MODE; then
     echo "----------------------------------------"
-    echo -e "Summary: ${GREEN}$PASS_COUNT passed${NC}, ${RED}$FAIL_COUNT failed${NC}, ${YELLOW}$SKIP_COUNT skipped${NC}"
+    echo -e "Summary: ${GREEN}$PASS_COUNT passed${NC}, ${RED}$FAIL_COUNT failed${NC}, ${YELLOW}$SKIP_COUNT skipped${NC}, ${BLUE}$BLOCK_COUNT blocked${NC}"
     # Show fix hint if there were failures
     if [[ $FAIL_COUNT -gt 0 ]]; then
         FIX_CMD=$(skill_fix_command "$SKILL_ID")
         echo -e "  ${BLUE}→ Fix: run ${FIX_CMD} to address failures${NC}"
     fi
+    # A blocked checkpoint says nothing about the project — the fix belongs to
+    # the checkpoint file, and it is findable before an assessment ever runs.
+    if [[ $BLOCK_COUNT -gt 0 ]]; then
+        echo -e "  ${BLUE}→ $BLOCK_COUNT checkpoint(s) never ran (command refused by the allowlist)."
+        echo -e "    These are NOT findings about this project. Fix the checkpoint file:"
+        echo -e "    validate-checkpoints.sh $CHECKPOINT_FILE${NC}"
+    fi
     echo "----------------------------------------"
 fi
 
 # Output JSON report
-TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT))
+TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT + BLOCK_COUNT))
 JSON_RESULTS=$(IFS=,; echo "${RESULTS[*]}")
 
 cat << EOF
@@ -1341,7 +1454,8 @@ cat << EOF
     "total": $TOTAL,
     "pass": $PASS_COUNT,
     "fail": $FAIL_COUNT,
-    "skip": $SKIP_COUNT
+    "skip": $SKIP_COUNT,
+    "blocked": $BLOCK_COUNT
   },
   "checkpoints": [
     $JSON_RESULTS
@@ -1349,7 +1463,11 @@ cat << EOF
 }
 EOF
 
-# Exit with error if any failures.
+# Exit with error if any failures. `blocked` deliberately does NOT set the exit
+# code: it reports a broken checkpoint, not a broken project, and gating a
+# release on it would re-create the false finding this status exists to remove.
+# The terminal summary and the JSON `blocked` count carry it instead, and
+# validate-checkpoints.sh fails the checkpoint file at authoring time.
 #
 # The explicit `exit 0` is load-bearing: without it the script ends on the
 # false `[[ ]]` test and inherits ITS status, so a run where everything passed

@@ -81,9 +81,25 @@ mechanical:
 
   - id: MS-07
     type: command
-    # Customize build/logs/junit.xml to your project's test-report path.
-    # find -mtime -1 is portable across GNU and BSD find.
-    pattern: 'find build/logs/junit.xml -maxdepth 0 -mtime -1 2>/dev/null | grep -q .'
+    # THE PRUNE IDIOM — copy this shape for every `find` in a checkpoint.
+    #
+    # A checkpoint runs from the root of the repository under test, and the
+    # runner's auto-exclude list (vendor/, node_modules/, .Build/, ...) applies
+    # ONLY to glob targets of content checks — never to a command body, never
+    # to a file_exists glob, never to a precondition. A bare `find . -name ...`
+    # therefore walks straight into every vendored dependency: one precondition
+    # written that way matched
+    # .Build/vendor/typo3/cms-core/Configuration/RTE/SysNews.yaml and ran all
+    # 14 typo3-ckeditor5 checkpoints against an extension with no RTE code at
+    # all. In this checkpoint the leak would be silent in the other direction —
+    # a vendored dependency's own junit.xml would satisfy it.
+    #
+    # `-prune` short-circuits the descent instead of filtering matches, so it
+    # is also the cheap spelling on a large repo. `-mtime -1` is portable
+    # across GNU and BSD find. Adjust `-name 'junit*.xml'` to your project's
+    # test-report name.
+    # yamllint disable-line rule:line-length
+    pattern: "find . '(' -name vendor -o -name node_modules -o -name .Build -o -name .git ')' -prune -o -name 'junit*.xml' -type f -mtime -1 -print | grep -q ."
     severity: warning
     desc: "Test report must exist and be <24h old"
 

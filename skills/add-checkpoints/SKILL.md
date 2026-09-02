@@ -27,7 +27,7 @@ Analyze a skill and generate appropriate `checkpoints.yaml` for the automated-as
 3. **Extract requirements** — parse SKILL.md for verifiable rules and patterns
 4. **Generate checkpoints** — create `checkpoints.yaml` with mechanical checks and LLM reviews
 5. **Add preconditions** — determine which project types this skill applies to
-6. **Validate** — `${CLAUDE_PLUGIN_ROOT}/skills/automated-assessment/scripts/validate-checkpoints.sh`, then `${CLAUDE_PLUGIN_ROOT}/skills/automated-assessment/scripts/run-checkpoints.sh` on a sample project
+6. **Validate** — `${CLAUDE_PLUGIN_ROOT}/skills/automated-assessment/scripts/validate-checkpoints.sh`, then `${CLAUDE_PLUGIN_ROOT}/skills/automated-assessment/scripts/run-checkpoints.sh` on a sample project. Treat its warnings as findings: they name the defect classes below. A `blocked` result means the runner refused the command — the checkpoint never ran, so it is a defect in your YAML, not in the sample project.
 7. **Report** — explain what was generated and why, or why checkpoints don't fit
 
 ## Suitability Criteria
@@ -74,6 +74,29 @@ Use the skill's established prefix from `../automated-assessment/references/migr
 - `error`: "must", "required", "never" → blocks release
 - `warning`: "should", "recommended" → suggestion
 - `info`: "consider", "nice to have" → optional
+
+### The three defect classes — check every generated checkpoint against them
+
+A checkpoint that reports something untrue is worse than no checkpoint. Three
+shapes do that, all found in the shipped estate, none of them visibly wrong in
+the YAML. Full evidence and correct spellings:
+`../automated-assessment/references/checkpoints-schema.md`
+→ "Three defect classes that make a checkpoint misreport".
+
+1. **Vendor leakage** — a `find`, `file_exists` glob or precondition with no
+   exclusion for `vendor/`, `node_modules/`, `.Build/`. The runner's
+   auto-exclude covers ONLY glob targets of content checks; everywhere else the
+   exclusion is yours to write. One leaking precondition ran all 14
+   typo3-ckeditor5 checks against an extension with no RTE code.
+2. **Skill-relative script path** — `bash scripts/check-foo.sh`. A checkpoint
+   runs from the repository under test, where the skill's `scripts/` does not
+   exist, and the allowlist rejects path-prefixed commands anyway. Inline the
+   logic (`php -r '...'` for anything non-trivial); keep the shipped script as
+   the human entry point.
+3. **Pipe-into-head exit trap** — `... | head -1 && echo ... && exit 1 || exit 0`
+   reports a failure on every project, because `head` exits 0 on empty input.
+   Let the exit status come from the match (`grep -q`, or `regex_not` with no
+   command at all).
 
 ### Calibration Anchor
 

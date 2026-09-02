@@ -80,6 +80,12 @@ Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-0
 
 `error` = blocks release, `warning` = recommendation, `info` = optional.
 
+## Outcomes
+
+`pass` `fail` `skip` `blocked` — counted separately (`total == pass + fail + skip + blocked`).
+
+**Never report a `blocked` checkpoint as a finding.** It means the runner refused the command through its allowlist, so nothing was measured: the defect is in the checkpoint file, not in the assessed project. Report blocked checkpoints as broken checks, run `scripts/validate-checkpoints.sh <file>` against the owning skill, and file them there. A refused precondition is the same thing one level up — the JSON reason says `REFUSED by the runner allowlist`, which is not the same as "this skill does not apply". See `references/checkpoints-schema.md` → "Outcomes".
+
 ## References
 
 - `references/checkpoints-schema.md` -- Checkpoint YAML schema and types

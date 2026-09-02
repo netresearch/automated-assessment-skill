@@ -104,7 +104,8 @@ Collect all results into compliance report:
     "total": 45,
     "pass": 38,
     "fail": 5,
-    "skip": 2
+    "skip": 2,
+    "blocked": 0
   },
   "checkpoints": [
     {"id": "GH-01", "skill": "github-project", "status": "pass", "evidence": "README.md exists"},
@@ -112,6 +113,12 @@ Collect all results into compliance report:
   ]
 }
 ```
+
+A fourth status exists alongside `pass`/`fail`/`skip`: **`blocked`** — the
+runner refused the checkpoint's command through its allowlist, so nothing was
+measured. Never report a `blocked` checkpoint as a finding; it is a defect in
+the checkpoint file, and `validate-checkpoints.sh` reproduces it at authoring
+time. See `checkpoints-schema.md` → "Outcomes".
 
 ## Checkpoints YAML Format
 
