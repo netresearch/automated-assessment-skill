@@ -158,14 +158,21 @@ See `skills/automated-assessment/references/checkpoints-schema.md` for full sche
     "total": 45,
     "pass": 38,
     "fail": 5,
-    "skip": 2
+    "skip": 2,
+    "blocked": 0
   },
   "checkpoints": [
     {"id": "GH-01", "status": "pass", "evidence": "README.md exists"},
-    {"id": "ER-04", "status": "fail", "evidence": "Missing OpenSSF badge"}
+    {"id": "ER-04", "status": "fail", "evidence": "Missing OpenSSF badge"},
+    {"id": "TD-30", "status": "blocked", "evidence": "Command rejected: 'bash' not in allowed command whitelist"}
   ]
 }
 ```
+
+`blocked` means the runner refused the checkpoint's command, so it never ran —
+a defect in the checkpoint, not a finding about the project. It is counted
+separately (`total == pass + fail + skip + blocked`) and never sets the exit
+code. See `references/checkpoints-schema.md` → "Outcomes".
 
 ## Assets
 

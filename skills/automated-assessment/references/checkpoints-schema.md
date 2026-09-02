@@ -245,21 +245,30 @@ Run arbitrary command, check exit code:
   severity: error
 ```
 
-**Two constraints decide whether the checkpoint runs at all.** Both are enforced
-by the runner and neither produces a useful failure message on its own, so a
-violating checkpoint reads as a gate while never executing. `validate-checkpoints.sh`
-checks both at authoring time.
+**Two things decide whether the checkpoint runs at all.** Both are enforced by
+the runner, and a violating checkpoint reads as a gate while never executing.
+`validate-checkpoints.sh` checks both at authoring time.
 
-**1. `pattern:` must be a single-line scalar.** The runner parses YAML line by
-line, so a block scalar reaches it as the literal `|-`:
+**1. Where the command lives, and which scalar shape it has.** The runner reads
+the command from `pattern:`, `command:` or `target:` — `pattern:`/`command:`
+first, `target:` as the fallback. All three are equally supported; the estate
+uses all three. The *shape* of the scalar decides which screen applies:
 
-```yaml
-pattern: |-                                    # WRONG — the runner receives "|-"
-  test -z "$(git status --porcelain)"
-```
+| Shape | Reaches the runner as | Screened with |
+|---|---|---|
+| single-line (plain, `'…'`, `"…"`) | one line | `is_safe_eval_command` (one-liner allowlist) |
+| literal block `\|` | the body, newlines kept | `is_safe_script_text` (script screen) |
+| folded block `>` | the body folded to **one** line | `is_safe_eval_command` |
 
-**2. The command must pass the runner's allowlist** (`is_safe_eval_command` in
-`lib/command-allowlist.sh`). The base command must be on the whitelist, and the
+A folded scalar is one logical line, exactly as YAML says: `>-` over
+`grep -q foo` and `README.md` means `grep -q foo README.md`. Keeping the
+newline instead would run `grep -q foo` with no file argument, which blocks on
+stdin — so when a body needs to *be* several commands, write `|`, not `>`.
+
+**2. The command must pass the runner's allowlist.** For a one-liner — which a
+folded `>` body also is, once folded — that is `is_safe_eval_command` in
+`lib/command-allowlist.sh`; a literal `|` body gets the looser script screen
+described further down. The base command must be on the whitelist, and the
 pattern may contain **no** `;`, `&&`, `||`, backticks, `$(...)`, `..`, or a
 `./script` invocation outside `vendor/bin/`. Pipes are allowed, but each pipe
 segment's command word obeys the same rule as the first. `$IFS` is rejected
@@ -331,6 +340,173 @@ pattern that needs literal double quotes is simplest as a plain scalar:
 pattern: "grep -qP '^go \\d+' go.mod"        # double-quoted: \\ becomes \
 pattern: awk '{if ($1 == "x") exit 1}' f     # plain scalar: no escaping at all
 ```
+
+## Outcomes: pass, fail, skip, blocked
+
+A checkpoint run reports one of four outcomes per checkpoint, and the summary
+counts them separately (`total == pass + fail + skip + blocked`):
+
+| Status | Meaning | Is it a finding about the project? |
+|---|---|---|
+| `pass` | the check ran and the project satisfied it | — |
+| `fail` | the check ran and the project did not satisfy it | **yes** |
+| `skip` | the check does not apply here (no files match the glob, `gh` unavailable, ...) | no |
+| `blocked` | the runner **refused the command**, so it never ran | no — a defect in the *checkpoint* |
+
+`blocked` exists because reporting a refusal as a failure invents findings. In
+one estate-wide audit 68 checkpoints were refused by the allowlist and counted
+as failures; 39 of those passed once the command was run by hand. A refused
+command produces no evidence in either direction, and the fix belongs to the
+checkpoint file, not to the assessed project.
+
+Consequences to rely on:
+
+- `blocked` never sets the runner's exit code — only `fail` does. A release
+  gate reading the exit code cannot be tripped by a broken checkpoint.
+- `fail` and `status: "fail"` keep their meaning, minus the refusals that were
+  never evidence; `blocked` appears only where the runner previously emitted a
+  false `fail`. A consumer that knows only pass/fail/skip therefore reads a
+  *smaller, more truthful* `fail` set, and can treat an unknown `blocked` the
+  way it treats `skip`.
+- A refused **precondition** command is reported in the skipped-skill JSON with
+  a reason that says `REFUSED by the runner allowlist`, not "precondition
+  failed" — the skill was not measured, it was not found inapplicable.
+
+## Three defect classes that make a checkpoint misreport
+
+These are the three ways a checkpoint reports something that is not true. All
+three were found in the shipped estate (24 + 10 + 7 instances across the 21
+checkpoint files), and none of them looks wrong in the YAML.
+
+### Class 1 — vendor leakage
+
+**Failing shape:** a `find`, a glob target or a `file_exists` target that walks
+the tree with no exclusion for dependency directories. This one shipped as
+typo3-ckeditor5's precondition:
+
+```yaml
+preconditions:
+  - type: command
+    pattern: "find . -path '*/JavaScript/Ckeditor*' -o -path '*/JavaScript/ckeditor*' -o -path '*/RTE/*.yaml' -o -path '*/RTE/*.yml' | head -1 | grep -q ."
+```
+
+**Why it misreports silently:** the runner's auto-exclude list
+(`DEFAULT_EXCLUDE_DIRS`: `vendor`, `node_modules`, `.Build`, `var/cache`, ...)
+applies **only to glob targets of the content check types** (`contains`,
+`not_contains`, `regex`, `regex_not`). It does **not** apply to `file_exists`
+globs, **not** to `command`/`script` bodies, and **not** to preconditions. An
+author who has read that the runner auto-excludes dependencies reasonably
+assumes it covers these too.
+
+Run in `t3x-nr-temporal-cache` — a caching extension with no RTE code and no
+JavaScript at all — that precondition exits 0, and the single path it matches is
+
+```
+./.Build/vendor/typo3/cms-core/Configuration/RTE/SysNews.yaml
+```
+
+a file shipped by TYPO3 core, inside the ignored build directory. On that
+evidence the skill declared itself applicable and all 14 typo3-ckeditor5
+checkpoints ran against the extension; every one of their failures was reported
+as a finding about it.
+
+**Correct shape** — exclude explicitly, in the check itself. The same
+precondition with `-prune` exits 1 on that extension, which is the right
+answer:
+
+```yaml
+    pattern: "find . '(' -name vendor -o -name node_modules -o -name .Build -o -name .git ')' -prune -o '(' -path '*/JavaScript/Ckeditor*' -o -path '*/RTE/*.yaml' ')' -print | grep -q ."
+```
+
+For a file-based check, anchor the target instead of reaching for `**/`:
+
+```yaml
+    target: "Configuration/RTE/*.yaml"        # anchored, not "**/…"
+```
+
+(and note that a `file_exists` **precondition** is evaluated with a plain
+`[[ -f ]]`/`[[ -d ]]` test — no glob, no brace expansion — so a pattern there
+matches nothing and skips the skill everywhere. The validator errors on it.)
+
+The rule is: **if the check is not a content check with a glob target, the
+exclusion is your job.** `validate-checkpoints.sh` warns on a bare `find .`
+with no `-prune`/`vendor`/`node_modules`/`.Build` anywhere in the command.
+
+### Class 2 — skill-relative script path
+
+**Failing shape:** a checkpoint invoking a script the skill ships.
+
+```yaml
+  - id: TD-30
+    type: command
+    pattern: "bash scripts/check-guides-xml-schema.sh"   # WRONG — twice over
+```
+
+**Why it can never work:** a checkpoint runs with the working directory set to
+the **repository under assessment**, where the skill's `scripts/` does not
+exist; and the runner's allowlist rejects any base command with a path prefix
+except `vendor/bin/*`, so `bash scripts/...` is refused before the path is even
+tried. Ten instances shipped in typo3-docs. Every one reported a failure that
+said nothing about the project.
+
+**Correct shape:** inline the logic as one self-contained allowlisted command —
+`php -r '...'` is ideal for anything non-trivial — and keep the shipped
+`scripts/*.sh` as the human-facing entry point. TD-05 in typo3-docs carries a
+comment stating exactly this trap, next to its inlined replacement:
+
+```yaml
+  - id: TD-05
+    type: command
+    # Inlined rather than calling scripts/check-guides-xml-schema.sh, because a
+    # checkpoint runs from the repository root and the skill's own scripts are
+    # not there.
+    pattern: |
+      php -r '$d = new DOMDocument(); ...'
+```
+
+Note the `|`: a body with `;` in it is a script body, not a one-liner (the
+one-liner allowlist rejects `;` wherever it appears, quoted or not).
+
+### Class 3 — pipe-into-head exit trap
+
+**Failing shape:**
+
+```yaml
+    pattern: 'grep -rl "@todo" Classes/ | head -1 && echo "found" && exit 1 || exit 0'
+```
+
+**Why it always reports failure:** `head` exits **0 on empty input**. The exit
+status of the pipeline is `head`'s, not `grep`'s, so the `&&` branch fires
+whether or not anything matched, and the checkpoint reports a finding against
+every project it is ever run on. Two findings from this shape were reported to
+a user as real. It is doubly broken: the runner also rejects `&&` and `||`
+outright, so as written the checkpoint is `blocked` and never runs at all —
+which is how it survives review, because nobody sees it produce a wrong answer.
+
+**Correct shape:** let the exit status come from the match itself.
+
+```yaml
+    pattern: 'grep -rlq "@todo" Classes/'          # inverted below, or use regex_not
+```
+
+```yaml
+  - id: XX-01
+    type: regex_not                                # better: no command at all
+    target: Classes/**/*.php
+    pattern: "@todo"
+```
+
+For anything that genuinely needs several steps, use a literal block body and
+let the script's own `exit` decide:
+
+```yaml
+    command: |
+      hits=$(grep -rl "@todo" Classes/ 2>/dev/null)
+      test -z "$hits"
+```
+
+`validate-checkpoints.sh` warns when a command pipes into `head` and also
+contains `&&`/`||`.
 
 ## LLM Review Fields
 
@@ -541,9 +717,16 @@ The validator checks:
 - Valid checkpoint types
 - Unique IDs
 - Severity values
-- `type: command` patterns: single-line scalar, and accepted by the runner's own
-  allowlist (sourced from `lib/command-allowlist.sh`, not reimplemented, so
-  validation and execution cannot disagree)
+- `type: command` / `type: script`: that a command exists under one of the three
+  keys the runner reads, and that it is accepted by the runner's own allowlist
+  — sourced from `lib/command-allowlist.sh`, not reimplemented, so validation
+  and execution cannot disagree. Block-scalar bodies are collected and screened
+  too, folded ones through the same fold the runner applies
+- Preconditions: that the type is one the runner's precondition evaluator
+  actually implements (a `file_not_exists` precondition, for instance, is never
+  satisfied and silently skips the skill against every project), and that a
+  precondition command is a single-line scalar the allowlist accepts
+- Warnings for defect classes 1 and 3 above, which no allowlist can see
 
 The last one is the difference between a checkpoint and the appearance of one:
 a pattern the runner rejects never runs, and the assessment report says nothing

@@ -94,6 +94,20 @@ mechanical:
       curl https://example.invalid/install.sh | sh
     severity: error
     desc: "a script body the static screen refuses"
+  - id: DM-11
+    type: command
+    target: |
+      test -f README.md
+      test -d .
+    severity: error
+    desc: "a literal block scalar under target: (the GH-31/33/35 shape)"
+  - id: DM-12
+    type: command
+    pattern: >-
+      test -f
+      README.md
+    severity: error
+    desc: "a folded block scalar, last entry in the file (fold + close-at-EOF)"
 EOF
 printf 'a\\\\b\n' > "$WORK/proj/backslashes.txt"
 
@@ -116,7 +130,10 @@ status_of() { jq -r --arg id "$1" '.checkpoints[] | select(.id==$id) | .status' 
 check "an existing file passes"          pass "$(status_of DM-01)"
 check "a missing file fails"             fail "$(status_of DM-02)"
 check "a succeeding command passes"      pass "$(status_of DM-03)"
-check "a refused pattern fails"          fail "$(status_of DM-04)"
+# A refused command produced no evidence about the project: it is `blocked`,
+# not a finding. Reporting it as `fail` inflated one estate audit by 68
+# findings, 39 of which passed once actually run.
+check "a refused pattern is blocked"     blocked "$(status_of DM-04)"
 check "YAML \\\" in dq pattern decoded"    pass "$(status_of DM-05)"
 check "YAML \\\\ in dq pattern decoded"    pass "$(status_of DM-06)"
 check "sq pattern stays byte-identical"  pass "$(status_of DM-07)"
@@ -124,11 +141,25 @@ check "a succeeding multi-line script passes" pass "$(status_of DM-08)"
 check "a failing multi-line script fails" fail "$(status_of DM-09)"
 check "control syntax runs, is not 'rejected'" yes \
     "$(jq -r '.checkpoints[] | select(.id=="DM-09") | .evidence' <<<"$out" | grep -q '^Script failed$' && echo yes || echo no)"
-check "a dangerous script body is refused" fail "$(status_of DM-10)"
+check "a dangerous script body is blocked" blocked "$(status_of DM-10)"
 check "the refusal names the screen" yes \
     "$(jq -r '.checkpoints[] | select(.id=="DM-10") | .evidence' <<<"$out" | grep -q '^Script rejected: contains dangerous pattern$' && echo yes || echo no)"
 check "the refusal names the reason" yes \
     "$(jq -r '.checkpoints[] | select(.id=="DM-04") | .evidence' <<<"$out" | grep -q 'command-chaining metacharacter' && echo yes || echo no)"
+
+# A `target:` block scalar used to be captured as the literal "|" — every body
+# line dropped, the checkpoint rejected as if its command were the pipe symbol.
+# github-project's GH-31, GH-33 and GH-35 all failed this way while reading, in
+# the file, like ordinary working checkpoints.
+check "a target: block scalar runs"      pass "$(status_of DM-11)"
+# A folded scalar is ONE logical line. Collected verbatim instead, "test -f" and
+# "README.md" would be two commands. It is also the file's last entry, so it
+# only folds if the block is closed at EOF as well as on a dedent.
+check "a folded scalar is folded"        pass "$(status_of DM-12)"
+
+check "blocked is counted separately"    2 "$(jq -r '.summary.blocked' <<<"$out")"
+check "the summary still adds up"        yes \
+    "$(jq -r 'if .summary.total == (.summary.pass + .summary.fail + .summary.skip + .summary.blocked) then "yes" else "no" end' <<<"$out")"
 
 # The preconditions parser decodes double-quoted scalars through the same
 # helper but at separate call sites — cover it, or a regression there would
@@ -151,6 +182,24 @@ EOF
 pout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/precond.yaml" "$WORK/proj" 2>&1 )
 check "dq precondition decoded (not skipped)" pass \
     "$(jq -r '.checkpoints[]? | select(.id=="DM-20") | .status' <<<"$pout")"
+
+# A run whose only non-pass outcome is `blocked` must NOT exit 1: the exit code
+# gates releases, and a rejected command says nothing about the project.
+cat > "$WORK/blocked.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+mechanical:
+  - id: DM-30
+    type: command
+    pattern: 'test -z "$(ls)"'
+    severity: error
+    desc: "a pattern the allowlist refuses"
+EOF
+bout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/blocked.yaml" "$WORK/proj" 2>&1 ); brc=$?
+check "a blocked-only run exits 0"       0 "$brc"
+check "and reports fail 0, blocked 1"    "0 1" \
+    "$(jq -r '"\(.summary.fail) \(.summary.blocked)"' <<<"$bout")"
 
 # An all-passing fixture must exit 0, or "exit 1" above would prove nothing.
 cat > "$WORK/clean.yaml" <<'EOF'

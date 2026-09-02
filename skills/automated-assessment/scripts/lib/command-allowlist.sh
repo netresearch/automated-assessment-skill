@@ -60,6 +60,51 @@
 # Sourced, never executed.
 
 
+# Fold a YAML *folded* block scalar body (`>` / `>-` / `>+`) into the single
+# logical line YAML says it is.
+#
+# Lives here rather than in the runner because the authoring-time validator
+# must screen the SAME text the runner executes: a folded body reaches
+# is_safe_eval_command as one line, and a validator that folded differently
+# would reach a different verdict on the same checkpoint.
+#
+# Rules implemented (YAML 1.2 §8.1.3, minus chomping, which only decides
+# trailing newlines and cannot change what a command does):
+#   * consecutive non-empty lines join with a single space
+#   * a blank line is a real line break (n blank lines -> n newlines)
+#   * a MORE-indented line is not folded — it keeps its own line, and the
+#     breaks around it are kept too
+#
+# Folding is not cosmetic. `>-` over the two lines "grep -q foo" and
+# "README.md" means `grep -q foo README.md`; preserving the newline instead
+# would run `grep -q foo` with no file argument, which blocks on stdin.
+# Input: the body with the block's base indentation already stripped.
+fold_yaml_block() {
+    local body="$1" line out="" first=1 pending=0 force_break=0 indented
+    while IFS= read -r line; do
+        if [[ -z "${line//[[:space:]]/}" ]]; then
+            (( pending++ ))
+            continue
+        fi
+        indented=0
+        [[ "$line" == [[:space:]]* ]] && indented=1
+        if (( first )); then
+            out="$line"
+            first=0
+        elif (( pending > 0 )); then
+            while (( pending > 0 )); do out+=$'\n'; (( pending-- )); done
+            out+="$line"
+        elif (( indented || force_break )); then
+            out+=$'\n'"$line"
+        else
+            out+=" $line"
+        fi
+        force_break=$indented
+        pending=0
+    done <<<"$body"
+    printf '%s' "$out"
+}
+
 # Remove every single/double quote from a word. Used where bash's own
 # quote removal changes what a token MEANS — in command position, where
 # `'./evil'` executes ./evil — never on arguments, where a quoted
