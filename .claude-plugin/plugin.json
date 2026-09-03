@@ -1,6 +1,6 @@
 {
   "name": "automated-assessment",
-  "version": "2.16.0",
+  "version": "2.17.0",
   "description": "Systematic project assessment against checkpoint-enabled skills with scripted verification + LLM review",
   "author": {
     "name": "Netresearch DTT GmbH",
