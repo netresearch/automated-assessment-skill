@@ -1065,6 +1065,18 @@ precond_reason_text() {
     fi
 }
 
+# How many preconditions the file declares, counted independently of the
+# evaluation below (which does not run under --force). A full run's JSON
+# otherwise looks identical whether a precondition gated the skill in or the
+# file declares none at all — and "none declared" is the finding when a PHP-only
+# skill runs in full against a Python repository (issue #96).
+PRECOND_DECLARED=$(awk '
+    /^preconditions:[[:space:]]*$/ { s = 1; next }
+    /^[a-z_]+:/ { s = 0 }
+    s && /^[[:space:]]*-[[:space:]]*type:/ { n++ }
+    END { print n + 0 }
+' "$CHECKPOINT_FILE")
+
 # Parse preconditions: section and check each one before running mechanical checks
 if ! $IGNORE_PRECONDITIONS; then
     precond_type=""
@@ -1481,7 +1493,9 @@ cat << EOF
     "pass": $PASS_COUNT,
     "fail": $FAIL_COUNT,
     "skip": $SKIP_COUNT,
-    "blocked": $BLOCK_COUNT
+    "blocked": $BLOCK_COUNT,
+    "preconditions_declared": $PRECOND_DECLARED,
+    "preconditions_ignored": $IGNORE_PRECONDITIONS
   },
   "checkpoints": [
     $JSON_RESULTS

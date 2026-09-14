@@ -183,6 +183,34 @@ pout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/precond.yaml" "$WORK/proj" 2>
 check "dq precondition decoded (not skipped)" pass \
     "$(jq -r '.checkpoints[]? | select(.id=="DM-20") | .status' <<<"$pout")"
 
+# A full run must say whether a precondition gated the skill in or the file
+# declares none: on 2026-09-14 six PHP/TYPO3 skills ran in full against a Python
+# repository and the JSON could not tell "gate passed" from "no gate" (#96).
+check "a met precondition is reported as declared" "1 false" \
+    "$(jq -r '"\(.summary.preconditions_declared) \(.summary.preconditions_ignored)"' <<<"$pout")"
+cat > "$WORK/precond-unmet.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+preconditions:
+  - type: file_exists
+    target: composer.json
+  - type: file_exists
+    target: README.md
+
+mechanical:
+  - id: DM-21
+    type: file_exists
+    target: README.md
+    severity: error
+    desc: "runs only when preconditions are ignored"
+EOF
+fout=$( cd "$WORK" && bash "$RUNNER" --force --json "$WORK/precond-unmet.yaml" "$WORK/proj" 2>&1 )
+check "--force still counts the declared preconditions" "2 true pass" \
+    "$(jq -r '"\(.summary.preconditions_declared) \(.summary.preconditions_ignored) \(.checkpoints[] | select(.id=="DM-21") | .status)"' <<<"$fout")"
+uout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/precond-unmet.yaml" "$WORK/proj" 2>&1 )
+check "an unmet precondition still skips the skill" skipped "$(jq -r '.status' <<<"$uout")"
+
 # A run whose only non-pass outcome is `blocked` must NOT exit 1: the exit code
 # gates releases, and a rejected command says nothing about the project.
 cat > "$WORK/blocked.yaml" <<'EOF'
@@ -290,8 +318,10 @@ mechanical:
     severity: error
     desc: "a file that exists"
 EOF
-( cd "$WORK" && bash "$RUNNER" --json "$WORK/clean.yaml" "$WORK/proj" >/dev/null 2>&1 )
-check "an all-passing run exits 0" 0 "$?"
+cout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/clean.yaml" "$WORK/proj" 2>/dev/null ); crc=$?
+check "an all-passing run exits 0" 0 "$crc"
+check "a file without preconditions reports none declared" "0 false" \
+    "$(jq -r '"\(.summary.preconditions_declared) \(.summary.preconditions_ignored)"' <<<"$cout")"
 
 echo
 if [ "$fail" -eq 0 ]; then

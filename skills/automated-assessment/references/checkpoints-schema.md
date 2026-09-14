@@ -91,6 +91,11 @@ Preconditions are evaluated **before** any mechanical or LLM checks run. They ac
 - All preconditions must pass (AND logic)
 - If **any** precondition fails, the entire skill is **skipped** (this is not an error)
 - Preconditions are not reported as findings -- they silently gate the skill
+- A skill that runs reports `summary.preconditions_declared` (how many the file
+  declares) and `summary.preconditions_ignored` (`true` under `--force`). A
+  `0` there means nothing gated the skill: when a language- or framework-specific
+  skill runs in full against an unrelated project, that is the defect to fix in
+  its `checkpoints.yaml`
 
 ### Fields
 
