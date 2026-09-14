@@ -34,7 +34,10 @@
 #
 # Outcomes: pass | fail | skip | blocked. `blocked` means the allowlist refused
 # the command, so nothing was measured — a defect in the checkpoint, never a
-# finding about the project, and never a reason to exit non-zero.
+# finding about the project, and never a reason to exit non-zero. A one-line
+# command whose first word names an executable that does not exist (missing
+# path, or not on PATH) is `skip` with evidence "executable not found: <word>"
+# for the same reason: it would only have measured the missing tool.
 
 set -euo pipefail
 
@@ -930,8 +933,31 @@ run_checkpoint() {
                     evidence="Script rejected: $script_reason"
                 fi
             else
-                local reject_reason
+                local reject_reason="" exe_word="" allowed=false exe_missing=false
+                # Allowlist first: a refused command stays `blocked` even when
+                # the program it names is also missing, so a checkpoint defect
+                # is never hidden behind a `skip`.
                 if reject_reason=$(is_safe_eval_command "$cmd_text"); then
+                    allowed=true
+                    exe_word=$(command_base_word "$cmd_text")
+                    if [[ "$exe_word" == */* ]]; then
+                        [[ -f "$exe_word" ]] || exe_missing=true
+                    elif [[ -n "$exe_word" ]]; then
+                        command -v -- "$exe_word" >/dev/null 2>&1 || exe_missing=true
+                    fi
+                fi
+                if $allowed && $exe_missing; then
+                    # The program the command starts with does not exist here
+                    # (`vendor/bin/x` in a project without Composer, a tool not
+                    # on PATH). Running it would exit 127 and read as a finding,
+                    # but nothing about the project was measured — the same
+                    # reason `blocked` exists. Checked BEFORE running rather than
+                    # inferred from exit 127, which a command can also return on
+                    # its own. Only the first word is checked: a missing program
+                    # later in a pipe still runs and reports what it reports.
+                    status="skip"
+                    evidence="executable not found: $exe_word"
+                elif [[ -z "$reject_reason" ]]; then
                     if bash <<<"$cmd_text" > /dev/null 2>&1; then
                         status="pass"
                         evidence="Command succeeded"

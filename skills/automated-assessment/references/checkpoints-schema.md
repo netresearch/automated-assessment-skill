@@ -350,7 +350,7 @@ counts them separately (`total == pass + fail + skip + blocked`):
 |---|---|---|
 | `pass` | the check ran and the project satisfied it | — |
 | `fail` | the check ran and the project did not satisfy it | **yes** |
-| `skip` | the check does not apply here (no files match the glob, `gh` unavailable, ...) | no |
+| `skip` | the check does not apply here (no files match the glob, `gh` unavailable, the command's executable does not exist, ...) | no |
 | `blocked` | the runner **refused the command**, so it never ran | no — a defect in the *checkpoint* |
 
 `blocked` exists because reporting a refusal as a failure invents findings. In
@@ -368,6 +368,15 @@ Consequences to rely on:
   false `fail`. A consumer that knows only pass/fail/skip therefore reads a
   *smaller, more truthful* `fail` set, and can treat an unknown `blocked` the
   way it treats `skip`.
+- A one-line `command` whose **first word names an executable that does not
+  exist** — a path such as `vendor/bin/validate-pre-release.sh` that is not a
+  file in the assessed project, or a bare name `command -v` cannot resolve — is
+  `skip` with evidence `executable not found: <word>`, not `fail`. Running it
+  would exit 127 and measure only the missing tool. The allowlist is applied
+  first, so a refused command stays `blocked`; only the first word is checked,
+  and multi-line `type: script` bodies and precondition commands are not
+  covered. A checkpoint that needs a tool the project may lack should say so in
+  `desc`, because its `skip` is silent.
 - A refused **precondition** command is reported in the skipped-skill JSON with
   a reason that says `REFUSED by the runner allowlist`, not "precondition
   failed" — the skill was not measured, it was not found inapplicable.

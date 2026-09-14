@@ -43,6 +43,23 @@ verdict reject 'test -z "$(ls)"'
 verdict reject 'cat ../secret'
 verdict reject './run.sh'
 
+# --- command_base_word: the word both the allowlist and the runner's ---------
+# missing-executable check (issue #96) treat as the program being run.
+base_word() { # base_word <expected> <pattern>
+    local got
+    got=$(command_base_word "$2")
+    if [ "$1" = "$got" ]; then
+        echo "  ok   base word '$1': $2"
+    else
+        echo "  FAIL base word expected '$1', got '$got': $2"
+        fail=1
+    fi
+}
+base_word 'vendor/bin/validate-pre-release.sh' 'vendor/bin/validate-pre-release.sh --version-sync-only 2>/dev/null'
+base_word 'grep' '! grep -q x README.md'
+base_word 'grep' '  grep -q x README.md'
+base_word 'find' 'find . -name "*.php" | wc -l'
+
 # --- issue #67: expansion-resistant spellings of rejected argv ---------------
 # bash <<< strips the backslash/quotes, so each of these executes exactly
 # like its rejected twin above.
