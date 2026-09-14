@@ -183,6 +183,34 @@ pout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/precond.yaml" "$WORK/proj" 2>
 check "dq precondition decoded (not skipped)" pass \
     "$(jq -r '.checkpoints[]? | select(.id=="DM-20") | .status' <<<"$pout")"
 
+# A full run must say whether a precondition gated the skill in or the file
+# declares none: on 2026-09-14 six PHP/TYPO3 skills ran in full against a Python
+# repository and the JSON could not tell "gate passed" from "no gate" (#96).
+check "a met precondition is reported as declared" "1 false" \
+    "$(jq -r '"\(.summary.preconditions_declared) \(.summary.preconditions_ignored)"' <<<"$pout")"
+cat > "$WORK/precond-unmet.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+preconditions:
+  - type: file_exists
+    target: composer.json
+  - type: file_exists
+    target: README.md
+
+mechanical:
+  - id: DM-21
+    type: file_exists
+    target: README.md
+    severity: error
+    desc: "runs only when preconditions are ignored"
+EOF
+fout=$( cd "$WORK" && bash "$RUNNER" --force --json "$WORK/precond-unmet.yaml" "$WORK/proj" 2>&1 )
+check "--force still counts the declared preconditions" "2 true pass" \
+    "$(jq -r '"\(.summary.preconditions_declared) \(.summary.preconditions_ignored) \(.checkpoints[] | select(.id=="DM-21") | .status)"' <<<"$fout")"
+uout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/precond-unmet.yaml" "$WORK/proj" 2>&1 )
+check "an unmet precondition still skips the skill" skipped "$(jq -r '.status' <<<"$uout")"
+
 # A run whose only non-pass outcome is `blocked` must NOT exit 1: the exit code
 # gates releases, and a rejected command says nothing about the project.
 cat > "$WORK/blocked.yaml" <<'EOF'
@@ -201,6 +229,83 @@ check "a blocked-only run exits 0"       0 "$brc"
 check "and reports fail 0, blocked 1"    "0 1" \
     "$(jq -r '"\(.summary.fail) \(.summary.blocked)"' <<<"$bout")"
 
+# A command whose executable does not exist measured nothing about the project:
+# github-release GR-7/GR-12/GR-13 call `vendor/bin/*` validators and reported
+# "Command failed" on every repository without Composer (issue #96). The file
+# holds a present vendor/bin script too, so "skip" cannot come from treating
+# every vendor/bin path as missing, and a refused pattern naming a missing
+# program, so the allowlist still wins over the existence check.
+mkdir -p "$WORK/proj/vendor/bin"
+printf '#!/bin/sh\nexit 0\n' > "$WORK/proj/vendor/bin/present.sh"
+chmod +x "$WORK/proj/vendor/bin/present.sh"
+cat > "$WORK/missing.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+mechanical:
+  - id: DM-40
+    type: command
+    pattern: "vendor/bin/does-not-exist.sh --version-sync-only 2>/dev/null"
+    severity: error
+    desc: "a vendor/bin executable the project does not have"
+  - id: DM-41
+    type: command
+    pattern: "vendor/bin/present.sh"
+    severity: error
+    desc: "a vendor/bin executable the project has"
+  - id: DM-42
+    type: command
+    pattern: "./vendor/bin/does-not-exist.sh"
+    severity: error
+    desc: "the ./-prefixed spelling of a missing vendor/bin executable"
+  - id: DM-43
+    type: command
+    pattern: 'vendor/bin/does-not-exist.sh "$(ls)"'
+    severity: error
+    desc: "a refused pattern whose executable is also missing"
+  - id: DM-44
+    type: command
+    pattern: "! grep -q never-in-readme README.md"
+    severity: error
+    desc: "a negated builtin-led pattern still runs"
+EOF
+mout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/missing.yaml" "$WORK/proj" 2>&1 ); mrc=$?
+mstatus() { jq -r --arg id "$1" '.checkpoints[] | select(.id==$id) | .status' <<<"$mout"; }
+mevidence() { jq -r --arg id "$1" '.checkpoints[] | select(.id==$id) | .evidence' <<<"$mout"; }
+check "a missing vendor/bin executable is skipped"   skip "$(mstatus DM-40)"
+check "the skip names the missing executable" \
+    "executable not found: vendor/bin/does-not-exist.sh" "$(mevidence DM-40)"
+check "a present vendor/bin executable still runs"   pass "$(mstatus DM-41)"
+check "a missing ./vendor/bin executable is skipped" skip "$(mstatus DM-42)"
+check "a refused pattern stays blocked"              blocked "$(mstatus DM-43)"
+check "a negated pattern still runs"                 pass "$(mstatus DM-44)"
+check "a run without failures exits 0"               0 "$mrc"
+check "the summary still adds up with skips"         "5 5" \
+    "$(jq -r '"\(.summary.total) \(.summary.pass + .summary.fail + .summary.skip + .summary.blocked)"' <<<"$mout")"
+
+# A bare command name that is not on PATH is the same case as a missing path.
+# PATH is narrowed to the tools the runner itself needs, so `composer` (present
+# on many machines, absent on others) is deterministically unresolvable.
+TOOLS="$WORK/tools"
+mkdir -p "$TOOLS"
+for t in bash awk sed grep jq mktemp rm cat tr head dirname basename; do
+    ln -s "$(command -v "$t")" "$TOOLS/$t"
+done
+cat > "$WORK/missing-bare.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+mechanical:
+  - id: DM-45
+    type: command
+    pattern: "composer validate --strict"
+    severity: error
+    desc: "a whitelisted tool that is not installed"
+EOF
+bare_out=$( cd "$WORK" && PATH="$TOOLS" bash "$RUNNER" --json "$WORK/missing-bare.yaml" "$WORK/proj" 2>&1 )
+check "a tool not on PATH is skipped" "skip executable not found: composer" \
+    "$(jq -r '.checkpoints[] | select(.id=="DM-45") | "\(.status) \(.evidence)"' <<<"$bare_out")"
+
 # An all-passing fixture must exit 0, or "exit 1" above would prove nothing.
 cat > "$WORK/clean.yaml" <<'EOF'
 version: 1
@@ -213,8 +318,10 @@ mechanical:
     severity: error
     desc: "a file that exists"
 EOF
-( cd "$WORK" && bash "$RUNNER" --json "$WORK/clean.yaml" "$WORK/proj" >/dev/null 2>&1 )
-check "an all-passing run exits 0" 0 "$?"
+cout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/clean.yaml" "$WORK/proj" 2>/dev/null ); crc=$?
+check "an all-passing run exits 0" 0 "$crc"
+check "a file without preconditions reports none declared" "0 false" \
+    "$(jq -r '"\(.summary.preconditions_declared) \(.summary.preconditions_ignored)"' <<<"$cout")"
 
 echo
 if [ "$fail" -eq 0 ]; then

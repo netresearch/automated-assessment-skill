@@ -200,14 +200,25 @@ is_safe_script_text() {
 # Validate that a command is safe to eval.
 # Uses a whitelist of allowed base commands and rejects dangerous patterns.
 # Returns 0 if safe, 1 if rejected (with reason on stdout).
+#
+# The word the whitelist is applied to: the first field of the one-liner,
+# after a leading `!` (POSIX pipeline negation) is stripped so `! grep -q ...`
+# yields `grep`. awk's default field splitter handles the leading whitespace
+# introduced by the strip. Shared with run-checkpoints.sh, which uses the SAME
+# word to tell "the named executable does not exist" (skip) apart from "the
+# command ran and failed" (fail) — two definitions of "the command word" would
+# let the allowlist and that check disagree about which program a pattern runs.
+command_base_word() {
+    local stripped="${1#!}"
+    awk '{print $1}' <<<"$stripped"
+}
+
 is_safe_eval_command() {
     local pattern="$1"
-    # Strip a leading `!` (POSIX pipeline negation) so `! grep -q ...`
-    # reaches whitelist evaluation as `grep`. awk's default field
-    # splitter handles the leading whitespace introduced by the strip.
+    # The gh branch below reads the `!`-stripped text as well.
     local stripped="${pattern#!}"
     local cmd_base
-    cmd_base=$(echo "$stripped" | awk '{print $1}')
+    cmd_base=$(command_base_word "$pattern")
 
     # The accepted command runs through `bash <<<`, which removes
     # backslashes during word expansion — so a `\`-escaped flag or path
