@@ -60,6 +60,27 @@ Systematic compliance assessment against checkpoint-enabled skills.
 3. Fix in priority order (errors before warnings; use `--autofix` for automated resolution)
 4. Re-run `/assess` to verify
 
+## Running one skill's checks without `/assess`
+
+A skill that ships `checkpoints.yaml` can have it run directly — from inside
+that skill's own workflow, or by an agent that has loaded a sibling skill and
+wants its checks before doing the work by hand:
+
+```bash
+"$SKILL_DIR/../automated-assessment/scripts/run-checkpoints.sh" --force \
+  "<that-skill's base directory>/checkpoints.yaml" .
+```
+
+`SKILL_DIR` is the base directory the loader prints for the skill that is
+running; installed skills sit side by side, so the sibling path resolves in
+every install. `--force` skips preconditions where the caller already knows
+they hold; `--json` for a machine-readable report. A `fail` line names the
+file and the rule; a `blocked` line means the runner refused the command and
+the check never ran. Measured, and the reason this section exists: across
+twelve benchmark trials with 659 mechanical checkpoints from seven skills
+installed in every container, no trial ran one — the runner was named only
+in references, and the checks it would have run went to the test suite.
+
 ## Checkpoint Types
 
 **Mechanical:** `file_exists`, `file_not_exists`, `contains`, `not_contains`, `regex`, `json_path`, `gh_api`, `command`. **LLM:** `llm_review` (grouped by domain). See `references/checkpoints-schema.md`.
