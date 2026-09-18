@@ -67,14 +67,19 @@ typo3-extension-upgrade` — and it is the one to reach for from inside another
 skill's workflow. It needs no path.
 
 The direct call exists for scripts and for harnesses that have no slash
-commands. It takes the sibling path from the loader's base directory and the
-project root as the last argument, and every `target:` resolves against that
-root — run it from anywhere else and the checks read the wrong tree:
+commands. It takes the sibling path from the loader's base directory, the
+checkpoint file, and the project root as the last argument, and every `target:`
+resolves against that root — run it from anywhere else and the checks read the
+wrong tree. The checkpoint file is the one the skill's front-matter names under
+`checkpoints:`, and only where it names none is it `checkpoints.yaml` at the
+skill's base directory (the discovery rule in
+`references/checkpoint-workflow.md`); passing the root-level file to a skill
+that overrides it runs the wrong file or none.
 
 ```bash
 cd <project-root>
 "$SKILL_DIR/../automated-assessment/scripts/run-checkpoints.sh" --force \
-  "<that-skill's base directory>/checkpoints.yaml" .
+  "<the checkpoint file that rule resolves to>" .
 ```
 
 Measured, and the reason the slash command is named first: the direct form,
