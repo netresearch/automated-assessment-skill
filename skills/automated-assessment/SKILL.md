@@ -67,16 +67,22 @@ that skill's own workflow, or by an agent that has loaded a sibling skill and
 wants its checks before doing the work by hand:
 
 ```bash
+cd <project-root>   # the repository being assessed — targets resolve against it
 "$SKILL_DIR/../automated-assessment/scripts/run-checkpoints.sh" --force \
   "<that-skill's base directory>/checkpoints.yaml" .
 ```
 
 `SKILL_DIR` is the base directory the loader prints for the skill that is
 running; installed skills sit side by side, so the sibling path resolves in
-every install. `--force` skips preconditions where the caller already knows
-they hold; `--json` for a machine-readable report. A `fail` line names the
-file and the rule; a `blocked` line means the runner refused the command and
-the check never ran. Measured, and the reason this section exists: across
+every install. The last argument is the project root, and every `target:` in
+the file is read relative to it — run from anywhere else and the checks look
+at the wrong tree. `--force` skips preconditions where the caller already
+knows they hold; `--json` for a machine-readable report. Each result line
+carries the checkpoint id, its `desc`, and an evidence string; for a
+`script`-type check that evidence is only "Script failed" — the runner does
+not pass the script's own output through — so the check's `desc` is what
+tells you where to look. A `blocked` line means the runner refused the
+command and the check never ran. Measured, and the reason this section exists: across
 twelve benchmark trials with 659 mechanical checkpoints from seven skills
 installed in every container, no trial ran one — the runner was named only
 in references, and the checks it would have run went to the test suite.
