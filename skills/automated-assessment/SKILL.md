@@ -62,30 +62,32 @@ Systematic compliance assessment against checkpoint-enabled skills.
 
 ## Running one skill's checks without `/assess`
 
-A skill that ships `checkpoints.yaml` can have it run directly — from inside
-that skill's own workflow, or by an agent that has loaded a sibling skill and
-wants its checks before doing the work by hand:
+The one-hop form is the slash command with the skill named — `/assess
+typo3-extension-upgrade` — and it is the one to reach for from inside another
+skill's workflow. It needs no path.
+
+The direct call exists for scripts and for harnesses that have no slash
+commands. It takes the sibling path from the loader's base directory and the
+project root as the last argument, and every `target:` resolves against that
+root — run it from anywhere else and the checks read the wrong tree:
 
 ```bash
-cd <project-root>   # the repository being assessed — targets resolve against it
+cd <project-root>
 "$SKILL_DIR/../automated-assessment/scripts/run-checkpoints.sh" --force \
   "<that-skill's base directory>/checkpoints.yaml" .
 ```
 
-`SKILL_DIR` is the base directory the loader prints for the skill that is
-running; installed skills sit side by side, so the sibling path resolves in
-every install. The last argument is the project root, and every `target:` in
-the file is read relative to it — run from anywhere else and the checks look
-at the wrong tree. `--force` skips preconditions where the caller already
-knows they hold; `--json` for a machine-readable report. Each result line
-carries the checkpoint id, its `desc`, and an evidence string; for a
-`script`-type check that evidence is only "Script failed" — the runner does
-not pass the script's own output through — so the check's `desc` is what
-tells you where to look. A `blocked` line means the runner refused the
-command and the check never ran. Measured, and the reason this section exists: across
-twelve benchmark trials with 659 mechanical checkpoints from seven skills
-installed in every container, no trial ran one — the runner was named only
-in references, and the checks it would have run went to the test suite.
+Measured, and the reason the slash command is named first: the direct form,
+placed as a step in a skill body, was in the agent's context in three of three
+trials and attempted in none — no trial in twelve bound a variable of any kind,
+so a path that has to be assembled is a path that is not taken. The same check
+written into the body as a block that runs as pasted was run three of three.
+`--force` skips preconditions where the caller already knows they hold; `--json`
+for a machine-readable report. Each result line carries the checkpoint id, its
+`desc`, and an evidence string; for a `script`-type check that evidence is only
+"Script failed" — the runner does not pass the script's own output through — so
+the check's `desc` is what tells you where to look. A `blocked` line means the
+runner refused the command and the check never ran.
 
 ## Checkpoint Types
 
