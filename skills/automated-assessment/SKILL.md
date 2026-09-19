@@ -66,6 +66,11 @@ Systematic compliance assessment against checkpoint-enabled skills.
 request, report that and stop. Substituting an adjacent domain skill scored *below* having no
 skill at all in a measured ablation — see `references/capability-selection.md`.
 
+This verdict is reached before any checkpoint runs, so there is no run to serialise: `--json`
+has no report to emit and the answer is prose to the caller, naming the gap and the near
+misses. Do not synthesise a `skill_gaps` row for it — that shape carries the `skill` whose
+checkpoint failed, and here no skill was selected and nothing was measured.
+
 ## Running one skill's checks without `/assess`
 
 The one-hop form is the slash command with the skill named — `/assess

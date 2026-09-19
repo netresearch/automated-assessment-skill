@@ -45,6 +45,19 @@ has to spend a round dismissing.
 Naming the gap is useful output. It routes the next person to the missing
 capability rather than to a report that looks like an answer.
 
+## There is no JSON for it
+
+The verdict is reached before any checkpoint runs, so nothing was measured and
+there is no run to serialise. `--json` has no report to emit; the answer is prose
+to the caller.
+
+In particular, do not synthesise a `skill_gaps` row. That shape
+(`references/checkpoint-workflow.md`, `--review` output) carries the `skill`
+whose checkpoint failed and the gap in its coverage — it describes a skill that
+ran and came up short. A no-match is the other thing: no skill was selected, no
+checkpoint executed, and a row naming a `skill` would be inventing the field's
+subject.
+
 ## What this page does not settle
 
 The other half of the finding is open: `OFR-TYPO3-RELEASE-001` asks to prepare a
