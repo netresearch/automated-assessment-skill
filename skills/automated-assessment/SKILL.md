@@ -60,6 +60,17 @@ Systematic compliance assessment against checkpoint-enabled skills.
 3. Fix in priority order (errors before warnings; use `--autofix` for automated resolution)
 4. Re-run `/assess` to verify
 
+## When nothing offered fits, say so
+
+**Name no skill rather than the nearest one.** If no available skill's checkpoints cover the
+request, report that and stop. Substituting an adjacent domain skill scored *below* having no
+skill at all in a measured ablation — see `references/capability-selection.md`.
+
+This verdict is reached before any checkpoint runs, so there is no run to serialise: `--json`
+has no report to emit and the answer is prose to the caller, naming the gap and the near
+misses. Do not synthesise a `skill_gaps` row for it — that shape carries the `skill` whose
+checkpoint failed, and here no skill was selected and nothing was measured.
+
 ## Running one skill's checks without `/assess`
 
 The one-hop form is the slash command with the skill named — `/assess
@@ -125,6 +136,7 @@ Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-0
 - `references/checkpoints-schema.md` -- Checkpoint YAML schema and types
 - `references/learning-derived-checkpoints.md` -- Retro-to-checkpoint routing contract
 - `references/checkpoint-coverage-requirements.md` -- Required coverage categories per skill
+- `references/capability-selection.md` -- Why declining beats substituting, with the ablation that measured it
 - `references/checkpoint-workflow.md` -- Full assessment workflow with autofix loop
 - `references/calibration.md` -- Calibration debt, audit cadence, anchor at generation time, ratchet anti-pattern
 - `references/dependency-compatibility.md` -- Multi-major-version assessment trigger
