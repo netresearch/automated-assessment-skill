@@ -318,6 +318,55 @@ out=$(bash "$VALIDATOR" "$f" 2>&1)
 check "class 2 (skill-relative script) is named" yes \
     "$(grep -q 'defect class 2' <<<"$out" && echo yes || echo no)"
 
+# --- 5b. requires: is a plain path, never a glob ---------------------------
+# The gate is the same [[ -f ]]/[[ -d ]] test a file_exists precondition uses,
+# so a glob there matches nothing and removes the checkpoint from every run —
+# a silent omission that looks exactly like a checkpoint nobody wrote. Both
+# directions, because an error on every requires: would satisfy a one-sided
+# assertion.
+f=$(cp_file requires_glob <<'EOF'
+  - id: DM-60
+    type: file_exists
+    target: README.md
+    requires: "vendor/bin/*"
+    severity: error
+    desc: "a glob in requires"
+EOF
+)
+out=$(bash "$VALIDATOR" "$f" 2>&1); rc=$?
+check "a glob in requires is an error" 1 "$rc"
+check "the reason names the plain-test gate" yes \
+    "$(grep -q 'requires .* uses a glob or brace expansion' <<<"$out" && echo yes || echo no)"
+
+# `?` and `[` are globs too, and the runner treats them literally — a value
+# carrying either names a path that does not exist, so the checkpoint vanishes
+# from every run exactly as a `*` would.
+for ch in '?' '['; do
+    f=$(cp_file "requires_glob_extra" <<EOF
+  - id: DM-62
+    type: file_exists
+    target: README.md
+    requires: "vendor/bin${ch}phpstan"
+    severity: error
+    desc: "a glob metacharacter in requires"
+EOF
+)
+    out=$(bash "$VALIDATOR" "$f" 2>&1); rc=$?
+    check "a '$ch' in requires is an error" 1 "$rc"
+done
+
+f=$(cp_file requires_plain <<'EOF'
+  - id: DM-61
+    type: file_exists
+    target: README.md
+    requires: composer.json
+    severity: error
+    desc: "a plain path in requires"
+EOF
+)
+out=$(bash "$VALIDATOR" "$f" 2>&1); rc=$?
+check "a plain path in requires validates" 0 "$rc"
+
 # --- 6. one implementation, not two ----------------------------------------
 # The validator must apply the runner's rule, not a copy of it: a copy drifts,
 # and a checkpoint that passes validation but is rejected at run time is worse

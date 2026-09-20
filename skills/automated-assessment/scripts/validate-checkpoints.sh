@@ -198,6 +198,7 @@ for FILE in "$@"; do
             id = ""; type = ""; sev = ""; desc = ""
             v_pat = ""; k_pat = ""; key_pat = ""
             v_target = ""; k_target = ""
+            v_requires = ""
             delete seen_fields
         }
         function close_block(   ) {
@@ -216,6 +217,7 @@ for FILE in "$@"; do
             else if (key == "desc")     desc = value
             else if (key == "pattern" || key == "command") { v_pat = value; k_pat = "single"; key_pat = key }
             else if (key == "target")   { v_target = value; k_target = "single" }
+            else if (key == "requires") v_requires = value
         }
         # Returns 1 when the line was a `key: value` (or block header) line.
         function field_line(line,   key, value, ind) {
@@ -266,6 +268,12 @@ for FILE in "$@"; do
                 else if (index(" " VALID " ", " " type " ") == 0) print "ERROR:" id ": unknown type \x27" type "\x27"
                 if (sev != "" && index(" " SEVS " ", " " sev " ") == 0) print "ERROR:" id ": invalid severity \x27" sev "\x27"
                 if (desc == "") print "WARNING:" id ": no \x27desc\x27 — assessment output will not say what failed"
+                # `requires:` gates the checkpoint with the same plain
+                # [[ -f ]]/[[ -d ]] test the file_exists precondition uses, so a
+                # glob or brace matches nothing and silently removes the
+                # checkpoint from every run.
+                if (v_requires != "" && (index(v_requires, "*") > 0 || index(v_requires, "{") > 0 || index(v_requires, "?") > 0 || index(v_requires, "[") > 0))
+                    print "ERROR:" id ": requires \x27" v_requires "\x27 uses a glob or brace expansion — the gate is a plain [[ -f ]]/[[ -d ]] test, so the checkpoint would be left out of every run"
                 if (type == "command" || type == "script") {
                     if (pick_command())
                         print "CMD:" id "\t" pick_key "\t" pick_kind "\t" pick_val
