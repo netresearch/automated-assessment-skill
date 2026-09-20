@@ -284,6 +284,10 @@ declare -a RESULTS=()
 PASS_COUNT=0
 FAIL_COUNT=0
 SKIP_COUNT=0
+# Checkpoints left out of the run by their own `requires:` gate. Counted apart
+# from the four outcomes so `total` keeps its invariant.
+GATED_OUT_COUNT=0
+GATED_OUT_IDS=()
 # `blocked` — the runner's allowlist refused the command, so it never ran.
 # Reporting that as a failure was wrong and expensive: in one estate-wide audit
 # 68 checkpoints were refused, 39 of which PASSED once run outside the sandbox,
@@ -412,6 +416,32 @@ run_checkpoint() {
     # Either a single string, or a YAML/JSON-style inline list:
     # `["typo3", "php"]` — every element must appear in the API response.
     local expect_contains="${10:-}"
+    # 11th arg: requires — a per-checkpoint applicability gate (see below).
+    local requires="${11:-}"
+
+    # Per-checkpoint gate. `requires:` names a path whose absence means the
+    # checkpoint does not apply to this project; the checkpoint is then left
+    # OUT of the run entirely rather than reported. A gated-out checkpoint is
+    # not a `skip`: `skip` says the check ran into something it could not
+    # measure and stays in `total`, while an inapplicable checkpoint should not
+    # enlarge the report at all. `total == pass + fail + skip + blocked` holds
+    # unchanged; the omissions are counted separately in `gated_out`, because
+    # a gate nobody can see is indistinguishable from a checkpoint that was
+    # never written.
+    #
+    # Same plain `[[ -f ]]`/`[[ -d ]]` test as a `file_exists` precondition —
+    # no glob, no brace expansion. `--force`/`--ignore-preconditions` bypasses
+    # this gate too: one flag, one meaning.
+    if [[ -n "$requires" ]] && ! $IGNORE_PRECONDITIONS; then
+        if [[ ! -f "$requires" ]] && [[ ! -d "$requires" ]]; then
+            ((GATED_OUT_COUNT++)) || true
+            GATED_OUT_IDS+=("$id")
+            if ! $JSON_MODE; then
+                echo -e "${BLUE}–${NC} [$id] $desc - not applicable (requires $requires)"
+            fi
+            return 0
+        fi
+    fi
 
     local status="skip"
     local evidence=""
@@ -1213,6 +1243,7 @@ fi
 # Parse YAML with new schema (mechanical: section)
 # Using simple parsing since yq might not be available
 current_id=""
+current_requires=""
 current_type=""
 current_target=""
 current_pattern=""
@@ -1314,7 +1345,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^llm_reviews:[[:space:]]*$ ]]; then
         # Process any pending checkpoint before switching sections
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains" "$current_requires"
             current_id=""
         fi
         in_mechanical_section=false
@@ -1336,7 +1367,7 @@ while IFS= read -r line; do
         _new_id="${BASH_REMATCH[1]}"
         # New checkpoint - process previous if exists
         if [[ -n "$current_id" ]]; then
-            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains"
+            run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains" "$current_requires"
         fi
         current_id="$_new_id"
         current_type=""
@@ -1348,6 +1379,7 @@ while IFS= read -r line; do
         current_org_provides=""
         current_follow_uses=""
         current_expect_contains=""
+        current_requires=""
     elif [[ "$line" =~ ^[[:space:]]*type:[[:space:]]*(.+)$ ]]; then
         current_type="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^([[:space:]]*)(command|pattern|target):[[:space:]]*([|>])[-+]?[[:space:]]*$ ]]; then
@@ -1435,6 +1467,11 @@ while IFS= read -r line; do
         current_expect_contains="${BASH_REMATCH[1]}"
     elif [[ "$line" =~ ^[[:space:]]*severity:[[:space:]]*(.+)$ ]]; then
         current_severity="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^[[:space:]]*requires:[[:space:]]*(.+)$ ]]; then
+        # Per-checkpoint applicability gate: a path that must exist for this
+        # checkpoint to run at all. Single-line scalar only.
+        current_requires="${BASH_REMATCH[1]}"
+        current_requires=$(echo "$current_requires" | sed 's/^["'"'"']//; s/["'"'"']$//')
     elif [[ "$line" =~ ^[[:space:]]*fix_skill:[[:space:]]*(.+)$ ]]; then
         current_fix_skill="${BASH_REMATCH[1]}"
         # Strip leading/trailing quotes so the value doesn't end up double-quoted
@@ -1456,7 +1493,7 @@ close_block_scalar
 
 # Process last checkpoint if still in mechanical section
 if [[ -n "$current_id" ]] && $in_mechanical_section; then
-    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains"
+    run_checkpoint "$current_id" "$current_type" "$current_target" "$current_pattern" "$current_severity" "$current_desc" "$current_fix_skill" "$current_org_provides" "$current_follow_uses" "$current_expect_contains" "$current_requires"
 fi
 
 if ! $JSON_MODE; then
@@ -1480,6 +1517,11 @@ fi
 # Output JSON report
 TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT + BLOCK_COUNT))
 JSON_RESULTS=$(IFS=,; echo "${RESULTS[*]}")
+JSON_GATED_OUT=""
+if [[ ${#GATED_OUT_IDS[@]} -gt 0 ]]; then
+    JSON_GATED_OUT=$(printf '"%s",' "${GATED_OUT_IDS[@]}")
+    JSON_GATED_OUT="${JSON_GATED_OUT%,}"
+fi
 
 cat << EOF
 {
@@ -1495,8 +1537,10 @@ cat << EOF
     "skip": $SKIP_COUNT,
     "blocked": $BLOCK_COUNT,
     "preconditions_declared": $PRECOND_DECLARED,
-    "preconditions_ignored": $IGNORE_PRECONDITIONS
+    "preconditions_ignored": $IGNORE_PRECONDITIONS,
+    "gated_out": $GATED_OUT_COUNT
   },
+  "gated_out_ids": [$JSON_GATED_OUT],
   "checkpoints": [
     $JSON_RESULTS
   ]

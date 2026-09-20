@@ -323,6 +323,50 @@ check "an all-passing run exits 0" 0 "$crc"
 check "a file without preconditions reports none declared" "0 false" \
     "$(jq -r '"\(.summary.preconditions_declared) \(.summary.preconditions_ignored)"' <<<"$cout")"
 
+# --- per-checkpoint `requires:` gate -------------------------------------
+#
+# Both directions in one fixture, because a gate that omits everything also
+# satisfies a suite that only ever asserts the omission: DG-01 names a path the
+# project does not have and must be left out, DG-02 names one it does have and
+# must run and fail. The third assertion is the invariant the gate exists to
+# preserve — an omitted checkpoint leaves `total` alone rather than adding a
+# fifth outcome to it.
+cat > "$WORK/gate.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+mechanical:
+  - id: DG-01
+    type: file_exists
+    target: vendor/bin/phpstan
+    requires: composer.json
+    severity: error
+    desc: "gated out: the project is not a Composer project"
+  - id: DG-02
+    type: file_exists
+    target: CHANGELOG.md
+    requires: README.md
+    severity: warning
+    desc: "gate satisfied: the checkpoint runs and fails"
+EOF
+gout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/gate.yaml" "$WORK/proj" 2>/dev/null )
+check "a checkpoint whose requires: path is absent is left out" "" \
+    "$(jq -r '[.checkpoints[] | select(.id=="DG-01")] | .[].status' <<<"$gout")"
+check "a checkpoint whose requires: path exists still runs" "fail" \
+    "$(jq -r '.checkpoints[] | select(.id=="DG-02") | .status' <<<"$gout")"
+check "the gated-out checkpoint is counted and named" "1 DG-01" \
+    "$(jq -r '"\(.summary.gated_out) \(.gated_out_ids | join(","))"' <<<"$gout")"
+check "an omitted checkpoint does not enter total" "1 1" \
+    "$(jq -r '"\(.summary.total) \(.summary.pass + .summary.fail + .summary.skip + .summary.blocked)"' <<<"$gout")"
+
+# --force bypasses the per-checkpoint gate exactly as it bypasses the
+# skill-level preconditions: one flag, one meaning.
+fout=$( cd "$WORK" && bash "$RUNNER" --force --json "$WORK/gate.yaml" "$WORK/proj" 2>/dev/null )
+check "--force runs the gated-out checkpoint" "fail" \
+    "$(jq -r '.checkpoints[] | select(.id=="DG-01") | .status' <<<"$fout")"
+check "--force reports nothing gated out" "0" \
+    "$(jq -r '.summary.gated_out' <<<"$fout")"
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "All run-checkpoints smoke tests passed"

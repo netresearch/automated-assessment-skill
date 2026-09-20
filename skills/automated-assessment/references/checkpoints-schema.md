@@ -138,6 +138,36 @@ preconditions:
     target: .github/workflows
 ```
 
+## `requires:` — gating a single checkpoint
+
+`preconditions:` gates a whole skill. `requires:` gates one checkpoint inside a skill that otherwise applies everywhere, which is the case a skill-level precondition cannot express: `enterprise-readiness` is about any project, while its Infection and `composer audit` checkpoints are about PHP projects.
+
+```yaml
+  - id: ER-70
+    type: command
+    requires: composer.json
+    pattern: "find infection.json5 infection.json -maxdepth 0 -type f 2>/dev/null | grep -q ."
+    severity: warning
+    desc: "Infection config should exist for mutation testing"
+```
+
+The value is a single path. It is tested with a plain `[[ -f ]]`/`[[ -d ]]`, exactly as a `file_exists` precondition is — **no glob, no brace expansion**; the validator errors on either, because such a value matches nothing and would remove the checkpoint from every run.
+
+When the path is absent the checkpoint is **left out of the run**: no row in `checkpoints[]`, no outcome, and `total` is one smaller. It is deliberately not a `skip`. A `skip` says the check ran into something it could not measure and stays in the report; an inapplicable checkpoint should not enlarge the report at all, which is the whole point of gating — a default `/assess` on a Python repository should be short, not padded with rows saying "not applicable".
+
+The invariant `total == pass + fail + skip + blocked` therefore still holds. Omissions are counted separately:
+
+| Field | Meaning |
+|---|---|
+| `summary.gated_out` | how many checkpoints their own `requires:` left out |
+| `gated_out_ids` | which ones, by id |
+
+Both exist for the same reason as `summary.preconditions_declared`: a gate nobody can see is indistinguishable from a checkpoint nobody wrote, and a `0` there says nothing gated this run.
+
+`--force` / `--ignore-preconditions` bypasses `requires:` as well — one flag, one meaning.
+
+An older runner ignores the field and runs the checkpoint as before, so a `checkpoints.yaml` may carry `requires:` before the runner that honours it is installed.
+
 ## Checkpoint ID Convention
 
 ```
