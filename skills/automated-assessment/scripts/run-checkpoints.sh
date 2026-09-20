@@ -1471,7 +1471,13 @@ while IFS= read -r line; do
         # Per-checkpoint applicability gate: a path that must exist for this
         # checkpoint to run at all. Single-line scalar only.
         current_requires="${BASH_REMATCH[1]}"
-        current_requires=$(echo "$current_requires" | sed 's/^["'"'"']//; s/["'"'"']$//')
+        # printf, not echo: a value starting with a dash — `requires: -n` — is
+        # read by echo as its own option, leaves current_requires empty, and
+        # the checkpoint then runs ungated. The two echo|sed strippers below
+        # predate this change and have the same weakness for desc and
+        # fix_skill, where the consequence is a mangled label rather than a
+        # gate that silently disappears.
+        current_requires=$(printf '%s\n' "$current_requires" | sed 's/^["'"'"']//; s/["'"'"']$//')
     elif [[ "$line" =~ ^[[:space:]]*fix_skill:[[:space:]]*(.+)$ ]]; then
         current_fix_skill="${BASH_REMATCH[1]}"
         # Strip leading/trailing quotes so the value doesn't end up double-quoted

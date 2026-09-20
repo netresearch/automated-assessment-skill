@@ -272,7 +272,7 @@ for FILE in "$@"; do
                 # [[ -f ]]/[[ -d ]] test the file_exists precondition uses, so a
                 # glob or brace matches nothing and silently removes the
                 # checkpoint from every run.
-                if (v_requires != "" && (index(v_requires, "*") > 0 || index(v_requires, "{") > 0))
+                if (v_requires != "" && (index(v_requires, "*") > 0 || index(v_requires, "{") > 0 || index(v_requires, "?") > 0 || index(v_requires, "[") > 0))
                     print "ERROR:" id ": requires \x27" v_requires "\x27 uses a glob or brace expansion — the gate is a plain [[ -f ]]/[[ -d ]] test, so the checkpoint would be left out of every run"
                 if (type == "command" || type == "script") {
                     if (pick_command())

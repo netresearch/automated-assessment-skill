@@ -338,6 +338,23 @@ check "a glob in requires is an error" 1 "$rc"
 check "the reason names the plain-test gate" yes \
     "$(grep -q 'requires .* uses a glob or brace expansion' <<<"$out" && echo yes || echo no)"
 
+# `?` and `[` are globs too, and the runner treats them literally — a value
+# carrying either names a path that does not exist, so the checkpoint vanishes
+# from every run exactly as a `*` would.
+for ch in '?' '['; do
+    f=$(cp_file "requires_glob_extra" <<EOF
+  - id: DM-62
+    type: file_exists
+    target: README.md
+    requires: "vendor/bin${ch}phpstan"
+    severity: error
+    desc: "a glob metacharacter in requires"
+EOF
+)
+    out=$(bash "$VALIDATOR" "$f" 2>&1); rc=$?
+    check "a '$ch' in requires is an error" 1 "$rc"
+done
+
 f=$(cp_file requires_plain <<'EOF'
   - id: DM-61
     type: file_exists
