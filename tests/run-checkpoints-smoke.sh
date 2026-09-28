@@ -367,6 +367,55 @@ check "--force runs the gated-out checkpoint" "fail" \
 check "--force reports nothing gated out" "0" \
     "$(jq -r '.summary.gated_out' <<<"$fout")"
 
+# --- brace target whose listed files are all absent ----------------------
+#
+# A brace target of plain paths ("{rector.php,Build/rector.php}") names
+# alternatives, exactly like a glob does. `contains` treated "none of them
+# exists" as not applicable; `regex` counted the literal, non-existent paths as
+# matched files and reported "Target file not found" — so rewriting a checkpoint
+# from contains to regex turned a skip into a finding (php-modernization PM-10..12
+# next to PM-09, which already reports the missing config). BR-03 is the other
+# direction: an existing listed file without the pattern still fails, and BR-04
+# keeps a single plain target a hard requirement.
+cat > "$WORK/brace.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+mechanical:
+  - id: BR-01
+    type: regex
+    target: "{cfg-a.php,Build/cfg-b.php}"
+    pattern: "anything"
+    severity: warning
+    desc: "regex, brace target, no listed file exists"
+  - id: BR-02
+    type: contains
+    target: "{cfg-a.php,Build/cfg-b.php}"
+    pattern: "anything"
+    severity: warning
+    desc: "contains, same target (reference behaviour)"
+  - id: BR-03
+    type: regex
+    target: "{README.md,Build/cfg-b.php}"
+    pattern: "not-in-the-readme"
+    severity: warning
+    desc: "regex, brace target, a listed file exists without the pattern"
+  - id: BR-04
+    type: regex
+    target: cfg-a.php
+    pattern: "anything"
+    severity: warning
+    desc: "regex, single plain target that does not exist"
+EOF
+bout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/brace.yaml" "$WORK/proj" 2>/dev/null )
+bstatus() { jq -r --arg id "$1" '.checkpoints[] | select(.id==$id) | .status' <<<"$bout"; }
+check "regex: brace target with no listed file is skipped"  skip "$(bstatus BR-01)"
+check "contains: brace target with no listed file is skipped" skip "$(bstatus BR-02)"
+check "regex: an existing listed file without the pattern fails" \
+    "fail Pattern not found in README.md" \
+    "$(jq -r '.checkpoints[] | select(.id=="BR-03") | "\(.status) \(.evidence)"' <<<"$bout")"
+check "regex: a missing single plain target still fails" fail "$(bstatus BR-04)"
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "All run-checkpoints smoke tests passed"

@@ -738,7 +738,11 @@ run_checkpoint() {
 
             if $found; then
                 status="pass"
-            elif $has_glob && [[ ${#files[@]} -eq 0 ]]; then
+            elif $has_glob && [[ -z "$checked_file" ]]; then
+                # Same test as `contains`: a brace target of plain paths
+                # leaves those literal paths in files[] even when none
+                # exists, so "no file was readable" is the N/A signal,
+                # not an empty array.
                 status="skip"
                 evidence="No files match glob: $target (checkpoint not applicable)"
             elif [[ -z "$checked_file" ]]; then
