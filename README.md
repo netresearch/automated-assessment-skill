@@ -209,6 +209,28 @@ code. See `references/checkpoints-schema.md` → "Outcomes".
 3. Make your changes
 4. Submit a pull request
 
+## Governance and policies
+
+This repository follows the organisation-wide policies of `netresearch`:
+
+- [Governance](https://github.com/netresearch/.github/blob/main/GOVERNANCE.md): roles, how changes are decided and disputes resolved, and who controls access to sensitive resources.
+- [Roadmap](https://github.com/netresearch/.github/blob/main/ROADMAP.md): the maintenance work planned and excluded for the coming year.
+- [Handling of dependency and code analysis findings](https://github.com/netresearch/.github/blob/main/SECURITY.md#handling-of-dependency-and-code-analysis-findings): which vulnerability, licence and static-analysis findings block a change, the deadlines for the others, and how exceptions are recorded.
+- [Secret management](https://github.com/netresearch/.github/blob/main/SECURITY.md#secret-management): where CI secrets are stored, who can access them, and when they are rotated.
+- [Access roster](https://github.com/netresearch/.github/blob/main/docs/access-roster.md): the accounts with admin, maintain and write access to this repository.
+
+Checks that run on every pull request to `main`:
+
+- Skill Validation (`.github/workflows/lint.yml`, reusable `validate.yml` of `netresearch/skill-repo-skill`): skill structure and version parity, ShellCheck at severity `style`, actionlint, markdownlint, yamllint, JSON syntax and checkpoint schemas.
+- CI (`.github/workflows/ci.yml`): shell syntax of the checkpoint runner, required fields of the template checkpoint file, SKILL.md body size.
+- Skill Tests (`.github/workflows/tests.yml`): runs every `tests/*.sh`.
+- Harness Verification (`.github/workflows/harness-verify.yml`): AGENTS.md presence, size and references.
+- CodeQL (GitHub default setup): analyses the GitHub Actions workflows.
+- SonarCloud Code Analysis, configured outside this repository.
+- DCO: every commit carries a `Signed-off-by` line.
+
+The repository installs no third-party packages at run time: `composer.json` requires only `netresearch/composer-agent-skill-plugin`, and `package.json` declares only a peer dependency. No dependency review, Composer Audit or secret-scanning workflow runs in this repository. Renovate (`renovate.json`) proposes updates for the hook revisions pinned in `.pre-commit-config.yaml`.
+
 ## License
 
 This project uses split licensing:
