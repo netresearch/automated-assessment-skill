@@ -12,3 +12,7 @@ jobs:
   validate:
     name: Skill Validation
     uses: netresearch/skill-repo-skill/.github/workflows/validate.yml@main
+    with:
+      # Same level as the pre-commit shellcheck hook, which runs at its
+      # default (style); every script in the tree passes `-S style`.
+      shellcheck-severity: style
