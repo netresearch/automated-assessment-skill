@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: Netresearch DTT GmbH
 # command-allowlist.sh — the safety filter for checkpoint `type: command`
 # patterns, shared by the runner and the authoring-time validator.
 #

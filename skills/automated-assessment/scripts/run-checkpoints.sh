@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: Netresearch DTT GmbH
 # run-checkpoints.sh - Run mechanical checkpoint verification
 # Part of extension-assessment skill
 #

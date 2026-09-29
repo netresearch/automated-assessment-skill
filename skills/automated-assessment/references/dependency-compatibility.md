@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Dependency Compatibility Assessment
 
 When a project's `composer.json` declares constraints spanning multiple major versions (e.g., `^2.0 || ^3.0`), the automated-assessment framework can trigger a **dependency compatibility** assessment to verify that the codebase actually works with each supported major version.

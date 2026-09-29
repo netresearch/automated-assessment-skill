@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Checkpoints YAML Schema
 
 This document defines the schema for `checkpoints.yaml` files used by the automated-assessment skill.

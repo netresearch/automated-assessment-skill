@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: Netresearch DTT GmbH
 # tests/checkpoint-validation.sh — covers validate-checkpoints.sh, the script
 # two reference docs told authors to run while it did not exist.
 #

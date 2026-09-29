@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Calibration: keeping checkpoints honest over time
 
 Checkpoints are **predictions**, not verdicts. A checkpoint that fires `error` / `warning` / `info` is claiming the project is more or less likely to ship a defect. That claim has to be checked against reality periodically, or it decays into ritual.

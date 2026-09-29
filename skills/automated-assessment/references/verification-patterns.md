@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Verification Patterns for Checkpoints
 
 Reusable checkpoint patterns that enforce "evidence before assertion" — i.e. no claim of pass/tested/verified without an artifact backing it.

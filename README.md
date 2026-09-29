@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Automated Assessment Skill
 
 [![CI](https://github.com/netresearch/automated-assessment-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/netresearch/automated-assessment-skill/actions/workflows/ci.yml)

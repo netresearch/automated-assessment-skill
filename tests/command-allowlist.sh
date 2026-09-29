@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: Netresearch DTT GmbH
 # tests/command-allowlist.sh — unit-tests is_safe_eval_command directly.
 #
 # The allowlist's argv- and path-level checks (gh flags, `..`, `./X`,

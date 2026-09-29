@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Checkpoint Workflow
 
 Detailed assessment workflow, checkpoint format, agent prompts, and validation rules.
