@@ -230,6 +230,12 @@ Extended regex pattern. Target supports glob patterns:
   severity: error
 ```
 
+With a glob or brace target (`{rector.php,Build/rector.php}`), `regex` and
+`contains` report `skip` when none of the listed files exists — the content
+check does not apply. Pair it with a `file_exists` checkpoint on the same
+target when the file's absence is itself the finding. A single plain target
+that does not exist is still `fail`.
+
 #### `regex_not`
 
 Inverse of `regex`. Passes if the pattern is NOT found in any matching file. Target supports glob patterns:
