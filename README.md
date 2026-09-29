@@ -231,6 +231,8 @@ Checks that run on every pull request to `main`:
 
 The repository installs no third-party packages at run time: `composer.json` requires only `netresearch/composer-agent-skill-plugin`, and `package.json` declares only a peer dependency. No dependency review, Composer Audit or secret-scanning workflow runs in this repository. Renovate (`renovate.json`) proposes updates for the hook revisions pinned in `.pre-commit-config.yaml`.
 
+What you can and cannot expect from this repository in terms of security, with its threat model and trust boundaries: [docs/SECURITY-ASSURANCE.md](docs/SECURITY-ASSURANCE.md).
+
 ## License
 
 This project uses split licensing:
