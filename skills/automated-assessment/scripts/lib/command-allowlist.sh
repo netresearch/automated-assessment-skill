@@ -48,8 +48,8 @@
 #   * Traversal spelled through an expansion: `.$1./evil` resolves to
 #     `../evil` with no literal `..` anywhere in the text.
 #   * A wrapper that takes its command after a value-bearing flag:
-#     `timeout 5 ./x`, `nice -n 10 ./x`. The wrapper list itself cannot be
-#     complete either.
+#     `xargs -n 1 scripts/x`, `| timeout 5 scripts/x`. The wrapper list
+#     itself cannot be complete either.
 #   * A shell reached through an allowlisted wrapper: `| env sh -c '...'`.
 #     Requiring each pipe segment's command word to be on the whitelist
 #     closes it and rejects `xargs -r -I {} test -e {}`, where `{}` is the
@@ -399,8 +399,8 @@ is_safe_eval_command() {
     # new command.
     #
     # The wrapper list cannot be complete, and a wrapper that takes its
-    # command after a VALUE-bearing flag (`timeout 5 ./x`, `nice -n 10
-    # ./x`) still hides it. See the header's KNOWN-OPEN list.
+    # command after a VALUE-bearing flag (`xargs -n 1 scripts/x`,
+    # `| timeout 5 scripts/x`) still hides it. See the header's KNOWN-OPEN list.
     local -a _cmd_takers=(xargs env nohup timeout watch command nice stdbuf setsid ionice chrt taskset flock)
     local _seg _t _bare _taker _cw _i
     local -a _segs _toks
