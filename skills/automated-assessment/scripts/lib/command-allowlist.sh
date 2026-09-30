@@ -215,6 +215,69 @@ command_base_word() {
     awk '{print $1}' <<<"$stripped"
 }
 
+# Restrict `gh` to read-only API queries. An assessment runs with the
+# operator's gh credentials against the repo under assessment, so a
+# checkpoint that reaches for a mutating subcommand (`gh repo edit`, `gh
+# release delete`, `gh api -X DELETE ...`) writes to a real repo — the
+# highest-blast-radius accident available here. Not containment (see the
+# file header): a checkpoint can still shell out via an allowlisted
+# interpreter.
+#
+# Allowed shape: `gh api <endpoint>` with no explicit state-changing method
+# (`-X POST|PUT|PATCH|DELETE` / `--method ...`) and no `--input`/`-f`/`-F`
+# request-body flags. `gh api` defaults to GET, so a bare `gh api` call is
+# safe.
+#
+# Applied wherever `gh` is a command word: first in the pattern, after a
+# `|`, or behind a wrapper (`| xargs gh ...`). A check on the first word
+# alone let `grep -q x f | gh repo edit ...` through.
+#
+# Usage: gh_readonly_check <subcommand word> <text the flag checks read>
+# Returns 0 if allowed, 1 if rejected (with reason on stdout).
+gh_readonly_check() {
+    local _gh_sub="$1" _gh="$2" _sq="'" _dq='"' _bs
+    _bs=$'\\'
+    _gh_sub=${_gh_sub//"$_bs"/}
+    if [[ "$_gh_sub" != "api" ]]; then
+        echo "'gh $_gh_sub' is not allowed; only 'gh api' (read-only) is permitted"
+        return 1
+    fi
+    # The flag checks run on a MORE aggressively normalized form than the
+    # general checks: a quoted `'-X'` or `"-X"` reaches gh as a bare `-X`
+    # (bash removes the quotes), so the quotes come out here too. That is
+    # safe in a read-only `gh api` call, whose arguments are an endpoint,
+    # flags and a --jq filter — never a quoted filesystem glob that the
+    # general `./X` guard protects. $'...'/$"..." quoting can still
+    # synthesize `-X` from escapes that no strip reproduces (`$'\055X'`);
+    # reject it as a class here, where it has no legitimate use.
+    _gh=${_gh//"$_bs"/}
+    _gh=${_gh//"$_sq"/}
+    _gh=${_gh//"$_dq"/}
+    if [[ "$_gh" == *'$'* ]]; then
+        echo "'gh api' rejected: '\$' (shell/ANSI-C quoting) not allowed in a read-only api call"
+        return 1
+    fi
+    # Reject ANY method flag, in any spelling. gh accepts the value spaced
+    # (`-X DELETE`), glued (`-XDELETE`) or with `=`, so match the flag
+    # alone rather than the flag+verb — `-XGET` glued would otherwise slip
+    # a space-anchored verb check (issue #67 follow-up). `gh api` defaults
+    # to GET and no read-only flag begins `-X`/`--method`, so a bare match
+    # is safe; the estate uses no method flag.
+    if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)([[:space:]]|=|[A-Za-z]) ]]; then
+        echo "'gh api' rejected: explicit method flag (-X/--method) not allowed; api defaults to GET"
+        return 1
+    fi
+    # Reject ANY request-body flag, in any spelling. These switch gh api to
+    # POST. `-f`/`-F` are the short forms of `--raw-field`/`--field`; cover
+    # the long aliases and the glued short form (`-fa=b`) the previous
+    # space/`=`-anchored check missed. No read-only flag begins `-f`/`-F`.
+    if [[ "$_gh" =~ (^|[[:space:]])(--input|--field|--raw-field|-f|-F) ]]; then
+        echo "'gh api' rejected: request-body flags (--input/--field/--raw-field/-f/-F) are not allowed"
+        return 1
+    fi
+    return 0
+}
+
 is_safe_eval_command() {
     local pattern="$1"
     # The gh branch below reads the `!`-stripped text as well.
@@ -346,7 +409,9 @@ is_safe_eval_command() {
     # Newlines first — they are the segment separator below.
     local _flat="${pattern//$'\n'/ }"
     mapfile -t _segs < <(split_top_level_pipes "$_flat")
+    local _segno=-1
     for _seg in "${_segs[@]}"; do
+        _segno=$(( _segno + 1 ))
         # shellcheck disable=SC2206  # word splitting is the point; globbing is off
         _toks=(${_seg#!})
         _taker=false
@@ -383,6 +448,17 @@ is_safe_eval_command() {
                 echo "'$_cw' has path prefix; only vendor/bin/* (with optional ./) is allowed"
                 return 1
             fi
+            # `gh` in any command position gets the same read-only rule as
+            # `gh` first in the pattern; the first word itself is checked
+            # below, with the whitelist, so its messages stay as they were.
+            if [[ "$_cw" == "gh" ]] && { (( _segno > 0 )) || $_taker; }; then
+                local _ghsub=""
+                (( _i + 1 < ${#_toks[@]} )) && _ghsub=$(strip_quotes "${_toks[_i+1]}")
+                if ! gh_readonly_check "$_ghsub" "${_toks[*]:_i}"; then
+                    (( _reset_f )) || set +f
+                    return 1
+                fi
+            fi
             if ! $_taker; then
                 for _t in "${_cmd_takers[@]}"; do
                     [[ "$_cw" == "$_t" ]] && _taker=true && break
@@ -412,64 +488,10 @@ is_safe_eval_command() {
 
     for acmd in "${allowed_cmds[@]}"; do
         if [[ "$cmd_base" == "$acmd" ]]; then
-            # Restrict `gh` to read-only API queries. An assessment runs
-            # with the operator's gh credentials against the repo under
-            # assessment, so a checkpoint that reaches for a mutating
-            # subcommand (`gh repo edit`, `gh release delete`, `gh api
-            # -X DELETE ...`) writes to a real repo — the highest-blast-
-            # radius accident available here. Not containment (see the
-            # file header): a checkpoint can still shell out via an
-            # allowlisted interpreter.
-            #
-            # Allowed shape: `gh api <endpoint>` with no explicit
-            # state-changing method (`-X POST|PUT|PATCH|DELETE` /
-            # `--method ...`) and no `--input`/`-f`/`-F` request-body
-            # flags. `gh api` defaults to GET, so a bare `gh api` call
-            # is safe.
+            # `gh` as the first word: read-only `gh api` only, see
+            # gh_readonly_check.
             if [[ "$cmd_base" == "gh" ]]; then
-                local _gh_sub
-                _gh_sub=$(echo "$stripped" | awk '{print $2}')
-                if [[ "$_gh_sub" != "api" ]]; then
-                    echo "'gh $_gh_sub' is not allowed; only 'gh api' (read-only) is permitted"
-                    return 1
-                fi
-                # The flag checks run on a MORE aggressively normalized
-                # form than the general checks: a quoted `'-X'` or `"-X"`
-                # reaches gh as a bare `-X` (bash removes the quotes), so
-                # the quotes come out here too. That is safe in a
-                # read-only `gh api` call, whose arguments are an
-                # endpoint, flags and a --jq filter — never a quoted
-                # filesystem glob that the general `./X` guard protects.
-                # $'...'/$"..." quoting can still synthesize `-X` from
-                # escapes that no strip reproduces (`$'\055X'`); reject it
-                # as a class here, where it has no legitimate use.
-                local _gh="$normalized" _sq="'" _dq='"'
-                _gh=${_gh//"$_sq"/}
-                _gh=${_gh//"$_dq"/}
-                if [[ "$_gh" == *'$'* ]]; then
-                    echo "'gh api' rejected: '\$' (shell/ANSI-C quoting) not allowed in a read-only api call"
-                    return 1
-                fi
-                # Reject ANY method flag, in any spelling. gh accepts the
-                # value spaced (`-X DELETE`), glued (`-XDELETE`) or with
-                # `=`, so match the flag alone rather than the flag+verb —
-                # `-XGET` glued would otherwise slip a space-anchored
-                # verb check (issue #67 follow-up). `gh api` defaults to
-                # GET and no read-only flag begins `-X`/`--method`, so a
-                # bare match is safe; the estate uses no method flag.
-                if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)([[:space:]]|=|[A-Za-z]) ]]; then
-                    echo "'gh api' rejected: explicit method flag (-X/--method) not allowed; api defaults to GET"
-                    return 1
-                fi
-                # Reject ANY request-body flag, in any spelling. These
-                # switch gh api to POST. `-f`/`-F` are the short forms of
-                # `--raw-field`/`--field`; cover the long aliases and the
-                # glued short form (`-fa=b`) the previous space/`=`-anchored
-                # check missed. No read-only flag begins `-f`/`-F`.
-                if [[ "$_gh" =~ (^|[[:space:]])(--input|--field|--raw-field|-f|-F) ]]; then
-                    echo "'gh api' rejected: request-body flags (--input/--field/--raw-field/-f/-F) are not allowed"
-                    return 1
-                fi
+                gh_readonly_check "$(echo "$stripped" | awk '{print $2}')" "$normalized" || return 1
             fi
             return 0
         fi

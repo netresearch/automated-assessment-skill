@@ -96,6 +96,17 @@ verdict reject 'gh api repos/o/r -Fa=b'
 # after a dash must still be accepted — the method guard keys on `-X` at a
 # word boundary, not any dash.
 verdict accept 'gh api search/issues?q=is:open --jq length'
+# The read-only rule holds wherever gh is a command word, not only first:
+# after a pipe, and behind a wrapper such as xargs. Both mutating shapes
+# were accepted while the rule looked at the pattern's first word only.
+verdict reject 'grep -q x README.md | gh repo edit --visibility public'
+verdict reject 'echo x | xargs gh release delete v1 --yes'
+verdict reject 'xargs gh repo delete o/r'
+verdict reject 'echo repos/o/r | xargs gh api -X DELETE'
+verdict reject "echo repos/o/r | xargs gh api '-X' DELETE"
+verdict reject 'echo repos/o/r | xargs gh api --input body.json'
+verdict accept 'echo repos/o/r | xargs gh api --jq .name'
+verdict accept 'gh api repos/o/r --jq .name | grep -q x'
 
 # --- issue #69: $IFS splices a blocked token back together ------------------
 # `bash <<<` expands and word-splits before argv exists, so $IFS between
