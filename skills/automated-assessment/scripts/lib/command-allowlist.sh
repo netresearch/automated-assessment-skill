@@ -264,7 +264,7 @@ gh_readonly_check() {
     # a space-anchored verb check (issue #67 follow-up). `gh api` defaults
     # to GET and no read-only flag begins `-X`/`--method`, so a bare match
     # is safe; the estate uses no method flag.
-    if [[ "$_gh" =~ (^|[[:space:]])(-X|--method)([[:space:]]|=|[A-Za-z]) ]]; then
+    if [[ "$_gh" =~ (^|[[:space:]])(-i*X|--method)([[:space:]]|=|[A-Za-z]) ]]; then
         echo "'gh api' rejected: explicit method flag (-X/--method) not allowed; api defaults to GET"
         return 1
     fi
@@ -272,7 +272,7 @@ gh_readonly_check() {
     # POST. `-f`/`-F` are the short forms of `--raw-field`/`--field`; cover
     # the long aliases and the glued short form (`-fa=b`) the previous
     # space/`=`-anchored check missed. No read-only flag begins `-f`/`-F`.
-    if [[ "$_gh" =~ (^|[[:space:]])(--input|--field|--raw-field|-f|-F) ]]; then
+    if [[ "$_gh" =~ (^|[[:space:]])(--input|--field|--raw-field|-i*f|-i*F) ]]; then
         echo "'gh api' rejected: request-body flags (--input/--field/--raw-field/-f/-F) are not allowed"
         return 1
     fi

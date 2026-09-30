@@ -119,6 +119,13 @@ verdict accept 'echo repos/o/r | xargs env gh api --jq .name'
 # regex matched only `exec ` and let `-execdir ` through.
 verdict reject 'find . -maxdepth 0 -execdir gh repo edit {} +'
 verdict reject 'find . -maxdepth 0 -execdir scripts/x {} +'
+# -i is gh api's one boolean short flag; a method or body flag glued behind
+# it (-iXDELETE, -if) still reaches gh.
+verdict reject 'gh api -iXDELETE repos/o/r/git/refs/heads/x'
+verdict reject 'gh api -iX DELETE repos/o/r'
+verdict reject 'gh api -if name=x repos/o/r'
+verdict reject 'grep -q x f | gh api -iX DELETE repos/o/r'
+verdict accept 'gh api -i repos/o/r'
 
 # --- issue #69: $IFS splices a blocked token back together ------------------
 # `bash <<<` expands and word-splits before argv exists, so $IFS between
