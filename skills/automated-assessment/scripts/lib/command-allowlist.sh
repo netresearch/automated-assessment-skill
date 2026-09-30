@@ -229,8 +229,9 @@ command_base_word() {
 # safe.
 #
 # Applied wherever `gh` is a command word: first in the pattern, after a
-# `|`, or behind a wrapper (`| xargs gh ...`). A check on the first word
-# alone let `grep -q x f | gh repo edit ...` through.
+# `|`, or behind a wrapper (`| xargs gh ...`), but not behind a wrapper flag
+# that takes a separate value (see KNOWN-OPEN in the header). A check on the
+# first word alone let `grep -q x f | gh repo edit ...` through.
 #
 # Usage: gh_readonly_check <subcommand word> <text the flag checks read>
 # Returns 0 if allowed, 1 if rejected (with reason on stdout).
