@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # LLM Rubric: dependency-compatibility Domain
 
 This file contains detailed rubrics for LLM-based reviews in the dependency-compatibility domain.

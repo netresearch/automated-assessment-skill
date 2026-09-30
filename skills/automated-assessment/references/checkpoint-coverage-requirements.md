@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Checkpoint Coverage Requirements
 
 This document defines the minimum checkpoint coverage requirements for skills that enforce code quality, testing, or dependency management standards.

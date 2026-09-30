@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Capability selection: declining beats substituting
 
 The rule in `SKILL.md` — name no skill rather than the nearest one — is not a

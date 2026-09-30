@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Checkpoints YAML Schema
 
 This document defines the schema for `checkpoints.yaml` files used by the automated-assessment skill.
@@ -310,8 +313,12 @@ stdin — so when a body needs to *be* several commands, write `|`, not `>`.
 folded `>` body also is, once folded — that is `is_safe_eval_command` in
 `lib/command-allowlist.sh`; a literal `|` body gets the looser script screen
 described further down. The base command must be on the whitelist, and the
-pattern may contain **no** `;`, `&&`, `||`, backticks, `$(...)`, `..`, or a
-`./script` invocation outside `vendor/bin/`. Pipes are allowed, but each pipe
+pattern may contain **no** `;`, `&&`, `||`, unquoted `&` or `|&` (redirections
+such as `2>&1` are fine), backticks, `$(...)`, `..`, or a
+`./script` invocation outside `vendor/bin/`. These rules match the text of the
+pattern, not what bash makes of it: they are a guard against careless
+checkpoints, and the header of `lib/command-allowlist.sh` lists spellings
+that pass them. Pipes are allowed, but each pipe
 segment's command word obeys the same rule as the first. `$IFS` is rejected
 outside single quotes, because splicing it into a blocked token reassembles
 that token after the check has run.

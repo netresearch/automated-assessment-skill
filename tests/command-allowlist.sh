@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: Netresearch DTT GmbH
 # tests/command-allowlist.sh — unit-tests is_safe_eval_command directly.
 #
 # The allowlist's argv- and path-level checks (gh flags, `..`, `./X`,
@@ -94,6 +96,52 @@ verdict reject 'gh api repos/o/r -Fa=b'
 # after a dash must still be accepted — the method guard keys on `-X` at a
 # word boundary, not any dash.
 verdict accept 'gh api search/issues?q=is:open --jq length'
+# The read-only rule holds wherever gh is a command word, not only first:
+# after a pipe, and behind a wrapper such as xargs. Both mutating shapes
+# were accepted while the rule looked at the pattern's first word only.
+verdict reject 'grep -q x README.md | gh repo edit --visibility public'
+verdict reject 'echo x | xargs gh release delete v1 --yes'
+verdict reject 'xargs gh repo delete o/r'
+verdict reject 'echo repos/o/r | xargs gh api -X DELETE'
+verdict reject "echo repos/o/r | xargs gh api '-X' DELETE"
+verdict reject 'echo repos/o/r | xargs gh api --input body.json'
+verdict accept 'echo repos/o/r | xargs gh api --jq .name'
+verdict accept 'gh api repos/o/r --jq .name | grep -q x'
+# A wrapper behind a wrapper: the second one used to end the scan, so the
+# command it wraps was never checked.
+verdict reject 'xargs env gh repo edit'
+verdict reject 'echo x | nohup env gh repo delete o/r'
+verdict reject 'echo x | xargs env gh api -X DELETE repos/o/r'
+verdict reject 'xargs env scripts/evil'
+verdict reject 'echo x | env nohup scripts/evil'
+verdict accept 'echo repos/o/r | xargs env gh api --jq .name'
+# find -execdir runs a command like -exec does; the dangerous-pattern
+# regex matched only `exec ` and let `-execdir ` through.
+verdict reject 'find . -maxdepth 0 -execdir gh repo edit {} +'
+verdict reject 'find . -maxdepth 0 -execdir scripts/x {} +'
+# -i is gh api's one boolean short flag; a method or body flag glued behind
+# it (-iXDELETE, -if) still reaches gh.
+verdict reject 'gh api -iXDELETE repos/o/r/git/refs/heads/x'
+verdict reject 'gh api -iX DELETE repos/o/r'
+verdict reject 'gh api -if name=x repos/o/r'
+verdict reject 'grep -q x f | gh api -iX DELETE repos/o/r'
+verdict accept 'gh api -i repos/o/r'
+# A single & ends a command like ; does, and |& pipes into the next one;
+# redirections and a quoted & are not separators.
+verdict reject 'grep -q x f & gh repo edit o/r'
+verdict reject 'grep -q x f & scripts/x'
+verdict reject 'grep -q x f |& gh repo edit o/r'
+verdict accept 'grep -q x f 2>&1'
+verdict accept 'grep -q x f &>/dev/null'
+verdict accept 'grep -q "GmbH & Co. KG" README.md'
+verdict accept 'gh api "repos/o/r/actions/runs?status=success&per_page=1"'
+# A subshell opener in front of gh hid it from the gh rule.
+verdict reject 'grep -q x f | (gh repo delete o/r --yes)'
+# Brace expansion assembles a method or body flag after the text check.
+verdict reject 'gh api repos/o/r/x {-X,DELETE}'
+verdict reject 'gh api repos/o/r/x {-f,a=b}'
+verdict reject 'grep -q x f | gh api repos/o/r {-X,DELETE}'
+verdict accept 'gh api repos/{owner}/{repo} --jq .name'
 
 # --- issue #69: $IFS splices a blocked token back together ------------------
 # `bash <<<` expands and word-splits before argv exists, so $IFS between
@@ -101,19 +149,19 @@ verdict accept 'gh api search/issues?q=is:open --jq length'
 # has passed. Verified: the first one deletes the directory.
 # shellcheck disable=SC2016  # literal ${IFS} is the attack; it must not expand here
 verdict reject 'xargs rm${IFS}-r victimdir'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'grep x | ${IFS}./evil'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'cat f |${IFS}sh'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'find . -name x -exec${IFS}sh -c evil +'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'cat f |$IFS sh'
 # A legitimate expansion stays accepted — the rule may not reject `$` or
 # `${` as a class. Both shapes below occur in installed checkpoints.
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict accept '[ "$missing" -eq 0 ]'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict accept 'grep -LP default "$f" 2>/dev/null'
 # A `$` that is not an expansion (regex end-anchor) must not be touched.
 verdict accept "grep -rqF 'echo \$' --include='*.php' Classes/"
@@ -122,7 +170,7 @@ verdict accept "grep -rqF 'echo \$' --include='*.php' Classes/"
 # would silently disable a real check — the failure mode that motivated
 # issue #52.
 verdict accept "grep -rq 'rm\${IFS}-rf' scripts/"
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict accept 'grep -rq "$dir./sub" .'
 
 # --- issue #70: quoted ./script in command position -------------------------

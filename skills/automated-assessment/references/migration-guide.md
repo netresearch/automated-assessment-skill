@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Migration Guide: Adding Checkpoints to Skills
 
 This guide explains how to add checkpoints to existing skills for automated assessment.

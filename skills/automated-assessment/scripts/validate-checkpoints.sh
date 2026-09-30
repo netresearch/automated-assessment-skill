@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: Netresearch DTT GmbH
 # validate-checkpoints.sh — structural validation of a checkpoints.yaml.
 #
 # checkpoints-schema.md and learning-derived-checkpoints.md have both told

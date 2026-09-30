@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+<!-- SPDX-FileCopyrightText: Netresearch DTT GmbH -->
+
 # Learning-derived Checkpoints
 
 How **`checkpoint` destination** materializations from `retro-skill` translate into entries in a target skill's `checkpoints.yaml`. This document is the contract between `retro-skill` (which proposes checkpoints) and `automated-assessment-skill` (which defines the YAML schema and the verifier runtime).

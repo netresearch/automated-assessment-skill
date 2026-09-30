@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: Netresearch DTT GmbH
 # tests/run-checkpoints-smoke.sh — actually run run-checkpoints.sh.
 #
 # Everything else in this repo inspects the runner without executing it, and
