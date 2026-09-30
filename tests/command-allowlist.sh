@@ -114,19 +114,19 @@ verdict accept 'gh api repos/o/r --jq .name | grep -q x'
 # has passed. Verified: the first one deletes the directory.
 # shellcheck disable=SC2016  # literal ${IFS} is the attack; it must not expand here
 verdict reject 'xargs rm${IFS}-r victimdir'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'grep x | ${IFS}./evil'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'cat f |${IFS}sh'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'find . -name x -exec${IFS}sh -c evil +'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict reject 'cat f |$IFS sh'
 # A legitimate expansion stays accepted — the rule may not reject `$` or
 # `${` as a class. Both shapes below occur in installed checkpoints.
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict accept '[ "$missing" -eq 0 ]'
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict accept 'grep -LP default "$f" 2>/dev/null'
 # A `$` that is not an expansion (regex end-anchor) must not be touched.
 verdict accept "grep -rqF 'echo \$' --include='*.php' Classes/"
@@ -135,7 +135,7 @@ verdict accept "grep -rqF 'echo \$' --include='*.php' Classes/"
 # would silently disable a real check — the failure mode that motivated
 # issue #52.
 verdict accept "grep -rq 'rm\${IFS}-rf' scripts/"
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict accept 'grep -rq "$dir./sub" .'
 
 # --- issue #70: quoted ./script in command position -------------------------
