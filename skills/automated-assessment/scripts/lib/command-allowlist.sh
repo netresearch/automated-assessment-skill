@@ -49,7 +49,7 @@
 #     `../evil` with no literal `..` anywhere in the text.
 #   * A wrapper that takes its command after a value-bearing flag:
 #     `xargs -n 1 scripts/x`, `| timeout 5 scripts/x`. The wrapper list
-#     itself cannot be complete either.
+#     itself cannot be complete either: `| time scripts/x` passes too.
 #   * A shell reached through an allowlisted wrapper: `| env sh -c '...'`.
 #     Requiring each pipe segment's command word to be on the whitelist
 #     closes it and rejects `xargs -r -I {} test -e {}`, where `{}` is the

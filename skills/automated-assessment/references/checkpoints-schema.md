@@ -315,7 +315,10 @@ folded `>` body also is, once folded — that is `is_safe_eval_command` in
 described further down. The base command must be on the whitelist, and the
 pattern may contain **no** `;`, `&&`, `||`, unquoted `&` or `|&` (redirections
 such as `2>&1` are fine), backticks, `$(...)`, `..`, or a
-`./script` invocation outside `vendor/bin/`. Pipes are allowed, but each pipe
+`./script` invocation outside `vendor/bin/`. These rules match the text of the
+pattern, not what bash makes of it: they are a guard against careless
+checkpoints, and the header of `lib/command-allowlist.sh` lists spellings
+that pass them. Pipes are allowed, but each pipe
 segment's command word obeys the same rule as the first. `$IFS` is rejected
 outside single quotes, because splicing it into a blocked token reassembles
 that token after the check has run.
