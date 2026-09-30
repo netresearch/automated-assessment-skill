@@ -115,6 +115,10 @@ verdict reject 'echo x | xargs env gh api -X DELETE repos/o/r'
 verdict reject 'xargs env scripts/evil'
 verdict reject 'echo x | env nohup scripts/evil'
 verdict accept 'echo repos/o/r | xargs env gh api --jq .name'
+# find -execdir runs a command like -exec does; the dangerous-pattern
+# regex matched only `exec ` and let `-execdir ` through.
+verdict reject 'find . -maxdepth 0 -execdir gh repo edit {} +'
+verdict reject 'find . -maxdepth 0 -execdir scripts/x {} +'
 
 # --- issue #69: $IFS splices a blocked token back together ------------------
 # `bash <<<` expands and word-splits before argv exists, so $IFS between

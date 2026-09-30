@@ -191,7 +191,7 @@ is_safe_script_text() {
     # minus the `\| sh` alternative's pipe spelling: inside a script,
     # `curl ... | sh` still matches via `curl.*\|.*sh`, and a bare pipeline
     # into sh on its own line has no pipe before it to match anyway.
-    if [[ "$pattern" =~ (curl[[:space:]].*\|[[:space:]]*(ba)?sh|wget[[:space:]].*\|[[:space:]]*(ba)?sh|eval[[:space:]]|exec[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R) ]]; then
+    if [[ "$pattern" =~ (curl[[:space:]].*\|[[:space:]]*(ba)?sh|wget[[:space:]].*\|[[:space:]]*(ba)?sh|eval[[:space:]]|exec(dir)?[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R) ]]; then
         echo "contains dangerous pattern"
         return 1
     fi
@@ -339,7 +339,7 @@ is_safe_eval_command() {
     )
 
     # Reject commands containing dangerous patterns regardless of base
-    if [[ "$normalized" =~ (curl.*\|.*sh|wget.*\|.*sh|eval[[:space:]]|exec[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R|\|[[:space:]]*(ba)?sh) ]]; then
+    if [[ "$normalized" =~ (curl.*\|.*sh|wget.*\|.*sh|eval[[:space:]]|exec(dir)?[[:space:]]|rm[[:space:]]+-r|sudo[[:space:]]|mkfs|dd[[:space:]]+if=|chmod[[:space:]]+-R|chown[[:space:]]+-R|\|[[:space:]]*(ba)?sh) ]]; then
         echo "contains dangerous pattern"
         return 1
     fi
