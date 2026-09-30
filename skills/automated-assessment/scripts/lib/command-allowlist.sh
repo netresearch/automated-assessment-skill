@@ -147,6 +147,35 @@ split_top_level_pipes() {
     printf '%s' "$out"
 }
 
+# True when the pattern holds a `&` outside quotes that ends a command:
+# `cmd & other` runs `other` as a second command, and `|&` pipes into one.
+# Redirections (`2>&1`, `<&0`, `&>file`) are not separators. Quote tracking
+# as in split_top_level_pipes: a `&` inside a quoted regex or URL is data.
+has_top_level_amp() {
+    local s="$1" c prev="" next insq=0 indq=0 i bs
+    bs=$'\\'
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        if (( ! insq )) && [[ "$c" == "$bs" ]]; then
+            (( i++ ))
+            prev=""
+            continue
+        fi
+        if (( ! indq )) && [[ "$c" == "'" ]]; then
+            insq=$(( 1 - insq ))
+        elif (( ! insq )) && [[ "$c" == '"' ]]; then
+            indq=$(( 1 - indq ))
+        elif (( ! insq && ! indq )) && [[ "$c" == '&' ]]; then
+            next="${s:i+1:1}"
+            if [[ "$prev" != '>' && "$prev" != '<' && "$next" != '>' ]]; then
+                return 0
+            fi
+        fi
+        prev="$c"
+    done
+    return 1
+}
+
 strip_quotes() {
     local s="$1" _sq="'" _dq='"'
     s=${s//"$_sq"/}
@@ -254,6 +283,10 @@ gh_readonly_check() {
     _gh=${_gh//"$_bs"/}
     _gh=${_gh//"$_sq"/}
     _gh=${_gh//"$_dq"/}
+    # Brace expansion builds words after this text check (`{-X,DELETE}` runs
+    # as `-X DELETE`), so braces and commas count as word breaks here. The
+    # gh placeholders `{owner}`, `{repo}` have no comma and stay literal.
+    _gh=${_gh//[\{\},]/ }
     if [[ "$_gh" == *'$'* ]]; then
         echo "'gh api' rejected: '\$' (shell/ANSI-C quoting) not allowed in a read-only api call"
         return 1
@@ -365,6 +398,12 @@ is_safe_eval_command() {
         echo "pattern contains command-chaining metacharacter (; && || \` \$())"
         return 1
     fi
+    # A single `&` ends a command just like `;` (and `|&` pipes into the
+    # next one), and nothing below checks what follows it.
+    if has_top_level_amp "$pattern"; then
+        echo "pattern contains a command-separating '&'"
+        return 1
+    fi
 
     # Scan the entire pattern for any whitespace-separated `./X` token
     # that is NOT `./vendor/bin/...`. This catches a `./X` invocation
@@ -419,6 +458,10 @@ is_safe_eval_command() {
         for (( _i = 0; _i < ${#_toks[@]}; _i++ )); do
             _bare=$(strip_quotes "${_toks[_i]}")
             _bare=${_bare//"$_bs"/}
+            # A subshell or group opener in front of the word hides it
+            # from every test below: `| (gh repo delete ...)` runs gh.
+            while [[ "${_bare:0:1}" == "(" || "${_bare:0:1}" == "{" ]]; do _bare=${_bare:1}; done
+            [[ -z "$_bare" ]] && continue
             # Leading redirections and VAR=value assignments precede the
             # command word; bash allows both, so skip past them rather
             # than mistaking one for the command (`| >out './evil'`).

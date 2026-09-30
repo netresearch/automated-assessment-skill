@@ -313,7 +313,8 @@ stdin — so when a body needs to *be* several commands, write `|`, not `>`.
 folded `>` body also is, once folded — that is `is_safe_eval_command` in
 `lib/command-allowlist.sh`; a literal `|` body gets the looser script screen
 described further down. The base command must be on the whitelist, and the
-pattern may contain **no** `;`, `&&`, `||`, backticks, `$(...)`, `..`, or a
+pattern may contain **no** `;`, `&&`, `||`, unquoted `&` or `|&` (redirections
+such as `2>&1` are fine), backticks, `$(...)`, `..`, or a
 `./script` invocation outside `vendor/bin/`. Pipes are allowed, but each pipe
 segment's command word obeys the same rule as the first. `$IFS` is rejected
 outside single quotes, because splicing it into a blocked token reassembles

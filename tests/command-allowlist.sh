@@ -126,6 +126,22 @@ verdict reject 'gh api -iX DELETE repos/o/r'
 verdict reject 'gh api -if name=x repos/o/r'
 verdict reject 'grep -q x f | gh api -iX DELETE repos/o/r'
 verdict accept 'gh api -i repos/o/r'
+# A single & ends a command like ; does, and |& pipes into the next one;
+# redirections and a quoted & are not separators.
+verdict reject 'grep -q x f & gh repo edit o/r'
+verdict reject 'grep -q x f & scripts/x'
+verdict reject 'grep -q x f |& gh repo edit o/r'
+verdict accept 'grep -q x f 2>&1'
+verdict accept 'grep -q x f &>/dev/null'
+verdict accept 'grep -q "GmbH & Co. KG" README.md'
+verdict accept 'gh api "repos/o/r/actions/runs?status=success&per_page=1"'
+# A subshell opener in front of gh hid it from the gh rule.
+verdict reject 'grep -q x f | (gh repo delete o/r --yes)'
+# Brace expansion assembles a method or body flag after the text check.
+verdict reject 'gh api repos/o/r/x {-X,DELETE}'
+verdict reject 'gh api repos/o/r/x {-f,a=b}'
+verdict reject 'grep -q x f | gh api repos/o/r {-X,DELETE}'
+verdict accept 'gh api repos/{owner}/{repo} --jq .name'
 
 # --- issue #69: $IFS splices a blocked token back together ------------------
 # `bash <<<` expands and word-splits before argv exists, so $IFS between
