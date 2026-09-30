@@ -107,6 +107,14 @@ verdict reject "echo repos/o/r | xargs gh api '-X' DELETE"
 verdict reject 'echo repos/o/r | xargs gh api --input body.json'
 verdict accept 'echo repos/o/r | xargs gh api --jq .name'
 verdict accept 'gh api repos/o/r --jq .name | grep -q x'
+# A wrapper behind a wrapper: the second one used to end the scan, so the
+# command it wraps was never checked.
+verdict reject 'xargs env gh repo edit'
+verdict reject 'echo x | nohup env gh repo delete o/r'
+verdict reject 'echo x | xargs env gh api -X DELETE repos/o/r'
+verdict reject 'xargs env scripts/evil'
+verdict reject 'echo x | env nohup scripts/evil'
+verdict accept 'echo repos/o/r | xargs env gh api --jq .name'
 
 # --- issue #69: $IFS splices a blocked token back together ------------------
 # `bash <<<` expands and word-splits before argv exists, so $IFS between

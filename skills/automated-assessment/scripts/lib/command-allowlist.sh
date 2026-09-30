@@ -459,13 +459,17 @@ is_safe_eval_command() {
                     return 1
                 fi
             fi
-            if ! $_taker; then
-                for _t in "${_cmd_takers[@]}"; do
-                    [[ "$_cw" == "$_t" ]] && _taker=true && break
-                done
-                # A wrapper's wrapped command is the next command word;
-                # anything else ends this segment's command position.
-                $_taker && continue
+            # A wrapper's wrapped command is the next command word, and that
+            # word may be a wrapper again (`xargs env gh ...`), so every
+            # command word is tested, not only the first; anything that is
+            # not a wrapper ends this segment's command position.
+            local _is_taker=false
+            for _t in "${_cmd_takers[@]}"; do
+                [[ "$_cw" == "$_t" ]] && _is_taker=true && break
+            done
+            if $_is_taker; then
+                _taker=true
+                continue
             fi
             break
         done
