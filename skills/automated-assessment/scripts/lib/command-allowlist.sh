@@ -41,7 +41,8 @@
 # `timeout 5 X` all reach X) and the first word of each process
 # substitution. Each must be on the whitelist or under vendor/bin/. What the
 # parser cannot classify is refused: a wrapper or wrapper option outside
-# its grammar, `$'...'`/`$"..."` quoting, brace expansion, an unclosed
+# its grammar, `$'...'` quoting outside single quotes, `$"..."` quoting
+# and brace expansion outside quotes, an unclosed
 # process substitution.
 #
 # KNOWN-OPEN, deliberately (all verified to execute; none is an accident
@@ -186,6 +187,42 @@ strip_quotes() {
     printf '%s' "$s"
 }
 
+# Split one pipe segment into shell words at whitespace outside quotes,
+# keeping the quotes and backslashes in each word; prints each word followed
+# by a NUL. A quoted value holding a blank is one word here, as it is for
+# bash, so it is read as one option value or one command word.
+split_shell_words() {
+    local s="$1" c word="" inword=0 insq=0 indq=0 i bs
+    bs=$'\\'
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        if (( ! insq )) && [[ "$c" == "$bs" ]]; then
+            word+="$c${s:i+1:1}"
+            inword=1
+            i=$(( i + 1 ))
+            continue
+        fi
+        if (( ! indq )) && [[ "$c" == "'" ]]; then
+            insq=$(( 1 - insq ))
+        elif (( ! insq )) && [[ "$c" == '"' ]]; then
+            indq=$(( 1 - indq ))
+        elif (( ! insq && ! indq )) && [[ "$c" == [[:space:]] ]]; then
+            if (( inword )); then
+                printf '%s\0' "$word"
+            fi
+            word=""
+            inword=0
+            continue
+        fi
+        word+="$c"
+        inword=1
+    done
+    if (( inword )); then
+        printf '%s\0' "$word"
+    fi
+    return 0
+}
+
 # Constructs outside quotes that let bash build argv bytes or words the text
 # checks never see, so no verdict reached on the text holds for what runs:
 #   * `$'...'` / `$"..."` quoting: `$'\055r'` is `-r`.
@@ -209,12 +246,17 @@ has_unclassifiable_construct() {
             indq=$(( 1 - indq ))
             continue
         fi
-        (( insq || indq )) && continue
+        (( insq )) && continue
         next="${s:i+1:1}"
-        if [[ "$c" == '$' && ( "$next" == "'" || "$next" == '"' ) ]]; then
+        # `$'` counts inside double quotes too: there it is literal text,
+        # except inside `${...}`, where `"${x:-$'\055r'}"` still yields `-r`.
+        # `$"` inside double quotes is a `$` before the closing quote, the
+        # regex end anchor of `"foo$"`, and stays accepted.
+        if [[ "$c" == '$' && ( "$next" == "'" || ( "$next" == '"' && indq -eq 0 ) ) ]]; then
             echo "pattern uses \$'...'/\$\"...\" quoting, which spells bytes the checks cannot read"
             return 0
         fi
+        (( indq )) && continue
         if [[ "$c" == '{' ]]; then
             depth=$(( depth + 1 ))
         elif [[ "$c" == '}' ]] && (( depth > 0 )); then
@@ -668,8 +710,9 @@ is_safe_eval_command() {
     local _segno=-1
     for _seg in "${_segs[@]}"; do
         _segno=$(( _segno + 1 ))
-        # shellcheck disable=SC2206  # word splitting is the point; globbing is off
-        _toks=(${_seg#!})
+        # Words as bash splits them: a quoted value with a blank in it is one
+        # word, so it cannot pass for an option value and a command.
+        mapfile -d '' -t _toks < <(split_shell_words "${_seg#!}")
         WRAP_TOKENS=()
         for _bare in "${_toks[@]}"; do
             _bare=$(strip_quotes "$_bare")

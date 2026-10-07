@@ -250,6 +250,15 @@ verdict reject 'grep -q x f | xargs --no-such-option grep y'
 verdict reject 'grep -q x f | xargs -Z grep -q y'
 verdict reject 'grep -q x f | env -S "sh -c id"'
 verdict reject 'grep -q x f | watch -n 1 grep y f'
+# A quoted value holding a blank is one word, as bash reads it: it cannot pass
+# for an option value followed by a whitelisted command.
+verdict reject 'grep -q x f | xargs -I "a grep" scripts/x'
+verdict reject 'grep -q x f | > "a grep" scripts/x'
+verdict reject 'grep -q x f | env -u "A grep" scripts/x'
+verdict reject 'grep x f | xargs -I "a grep" gh repo delete o/r'
+verdict reject 'xargs -I "a grep" scripts/x'
+verdict accept 'grep -q "a b" f | wc -l'
+verdict accept "find . -name '*.yml' | xargs -I{} grep -q 'a b' {}"
 # Redirections in front of the command word, numbered and spaced included.
 verdict reject "grep -q x f | 3<f './evil'"
 verdict reject 'grep -q x f | 0<f scripts/evil'
@@ -271,7 +280,9 @@ verdict reject "xargs rm \$'-r' dir"
 verdict reject "xargs rm \$'\\055r' dir"
 verdict reject 'grep -q x f | xargs rm $"-r" dir'
 verdict reject "find . -name x \$'-exec' sh -c id {} +"
+verdict reject "find . -name x \"\${x:-\$'\\055exec'}\" sh -c id {} +"
 verdict accept "grep -q '\$'\"'\"'x' f"
+verdict accept 'grep -q "foo$" f'
 verdict accept "grep -rq 'echo \$\"x' ."
 # Brace expansion builds words after the checks have read the text.
 verdict reject 'xargs r{m,} -r dir'
