@@ -23,7 +23,3 @@ intentional-drift:
   # default, error) until it raises the level for every skill repository.
   - path: .github/workflows/lint.yml
     reason: shellcheck-severity style, stricter than the template default
-  # Not enrolled yet: the shared Eval Validation requires at least ten evals
-  # in skills/add-checkpoints/evals/evals.json, which holds two.
-  - path: .github/workflows/eval-validate.yml
-    reason: add-checkpoints evals below the reusable's minimum of ten
