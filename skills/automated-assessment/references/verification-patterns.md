@@ -11,7 +11,7 @@ Sessions where an agent declares work "tested and verified" without actually run
 
 ## Runner compatibility
 
-All patterns below use `type: command`. The current scripted runner (`scripts/run-checkpoints.sh`) skips `type: gh_api` in batch mode, so GitHub-API-backed checks must be written as `command` with an inline `gh api` invocation. `gh api` natively resolves `{owner}` and `{repo}` placeholders when executed inside a git repository, so no additional templating is needed.
+All patterns below use `type: command`. The scripted runner (`scripts/run-checkpoints.sh`) does run `type: gh_api` checkpoints: it makes one `gh api <endpoint>` call, with `{owner}`, `{repo}` and `{default_branch}` filled in from the local `origin` remote, and tests the response with one `json_path` (`jq -e`) or `expect_contains`. The patterns below need more than that (a second call, arithmetic on a timestamp), so they are multi-line `command` bodies with inline `gh api` calls. A multi-line body runs as a script, screened by `is_safe_script_text` rather than by the one-line allowlist. `gh api` resolves the `{owner}` and `{repo}` placeholders itself when executed inside a git repository, so no additional templating is needed.
 
 Portable shell is required — the same checkpoints run on Linux CI and developer macOS machines. GNU-only flags like `stat -c` and `date -d` are avoided in favor of `find -mtime` and `gh api`-supplied timestamps.
 
@@ -118,7 +118,7 @@ Rubric body (loaded by the LLM checkpoint):
 | `contains: "passing"` on README | Trivially satisfied (badge text); no signal |
 | `file_exists` on test reports without a freshness bound | Old stale artifacts pass forever |
 | Hardcoded `branch=main` in API queries | Breaks on repos with `master`/custom default |
-| `type: gh_api` in scripted runs | Runner skips these — use `type: command` with `gh api` inline |
+| `type: gh_api` for a check that needs two calls or a computed comparison | `gh_api` makes one call and applies one `json_path` or `expect_contains` test — write such a check as a multi-line `command` body with `gh api` inline |
 | GNU-only `stat -c %Y` / `date -d` in checkpoints | macOS `stat` is BSD — use `find -mtime` instead |
 | LLM prompts that ask "is this okay?" | Non-deterministic; no rubric to anchor |
 | Checkpoints that never fail on any real repo | Cosmetic; drop them |

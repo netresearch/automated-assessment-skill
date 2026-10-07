@@ -88,12 +88,56 @@ if $JSON_MODE; then
     BLUE=''
     NC=''
 else
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    BLUE='\033[0;34m'
-    NC='\033[0m' # No Color
+    RED=$'\033[0;31m'
+    GREEN=$'\033[0;32m'
+    YELLOW=$'\033[0;33m'
+    BLUE=$'\033[0;34m'
+    NC=$'\033[0m' # No Color
 fi
+
+# Text that reaches the terminal is printed with `printf '%s'`, never through
+# `echo -e`, and passes through term_safe first: evidence carries file names
+# from the project under assessment, and a name holding control characters
+# would otherwise reach the terminal as control sequences. Each C0 control
+# character and DEL is shown as a visible \xNN.
+term_safe() {
+    local s="$1" i c rep
+    for (( i = 1; i < 32; i++ )); do
+        printf -v c '%b' "\\$(printf '%03o' "$i")"
+        [[ "$s" == *"$c"* ]] || continue
+        printf -v rep '\\x%02x' "$i"
+        s=${s//"$c"/"$rep"}
+    done
+    c=$'\177'
+    s=${s//"$c"/'\x7f'}
+    printf '%s' "$s"
+}
+
+# Escape a string for embedding in a JSON string literal: backslash, quote and
+# every control character (JSON forbids a literal one inside a string). Every
+# string field of the report goes through it, because evidence carries file
+# names from the project under assessment and a precondition reason carries
+# command text verbatim.
+json_escape() {
+    local s="$1" _bs _dq i c rep
+    _bs=$'\\'
+    _dq='"'
+    s=${s//"$_bs"/"$_bs$_bs"}
+    s=${s//"$_dq"/"$_bs$_dq"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    for (( i = 1; i < 32; i++ )); do
+        printf -v c '%b' "\\$(printf '%03o' "$i")"
+        [[ "$s" == *"$c"* ]] || continue
+        printf -v rep '\\u%04x' "$i"
+        s=${s//"$c"/"$rep"}
+    done
+    printf '%s' "$s"
+}
+
+# The checkpoint path is part of every JSON object below; escape it once.
+CHECKPOINT_FILE_JSON=$(json_escape "$CHECKPOINT_FILE")
 
 # Detect grep PCRE capability
 if echo "test" | grep -qP "test" 2>/dev/null; then
@@ -439,7 +483,7 @@ run_checkpoint() {
             ((GATED_OUT_COUNT++)) || true
             GATED_OUT_IDS+=("$id")
             if ! $JSON_MODE; then
-                echo -e "${BLUE}–${NC} [$id] $desc - not applicable (requires $requires)"
+                printf '%s\n' "${BLUE}–${NC} [$(term_safe "$id")] $(term_safe "$desc") - not applicable (requires $(term_safe "$requires"))"
             fi
             return 0
         fi
@@ -1023,19 +1067,20 @@ run_checkpoint() {
 
     # Terminal output (suppressed in --json mode)
     if ! $JSON_MODE; then
+        local t_id t_desc t_evidence
+        t_id=$(term_safe "$id")
+        t_desc=$(term_safe "$desc")
+        t_evidence=$(term_safe "$evidence")
         case "$status" in
-            pass) echo -e "${GREEN}✓${NC} [$id] $desc" ;;
-            fail) echo -e "${RED}✗${NC} [$id] $desc - $evidence" ;;
-            skip) echo -e "${YELLOW}○${NC} [$id] $desc - SKIPPED" ;;
-            blocked) echo -e "${BLUE}⊘${NC} [$id] $desc - BLOCKED (no evidence either way): $evidence" ;;
+            pass) printf '%s\n' "${GREEN}✓${NC} [$t_id] $t_desc" ;;
+            fail) printf '%s\n' "${RED}✗${NC} [$t_id] $t_desc - $t_evidence" ;;
+            skip) printf '%s\n' "${YELLOW}○${NC} [$t_id] $t_desc - SKIPPED" ;;
+            blocked) printf '%s\n' "${BLUE}⊘${NC} [$t_id] $t_desc - BLOCKED (no evidence either way): $t_evidence" ;;
         esac
     fi
 
-    # Escape quotes in evidence for JSON
-    evidence="${evidence//\"/\\\"}"
-
     # Add to results
-    RESULTS+=("{\"id\":\"$id\",\"status\":\"$status\",\"severity\":\"$severity\",\"evidence\":\"$evidence\",\"fix_skill\":\"${fix_skill:-$SKILL_ID}\"}")
+    RESULTS+=("{\"id\":\"$(json_escape "$id")\",\"status\":\"$status\",\"severity\":\"$(json_escape "$severity")\",\"evidence\":\"$(json_escape "$evidence")\",\"fix_skill\":\"$(json_escape "${fix_skill:-$SKILL_ID}")\"}")
 }
 
 if ! $JSON_MODE; then
@@ -1048,24 +1093,6 @@ if ! $JSON_MODE; then
 fi
 
 # === Precondition evaluation ===
-# Escape a string for embedding in a JSON string literal. The precondition
-# reason carries the command text verbatim, and a `"` in it produced invalid
-# JSON for every consumer downstream.
-json_escape() {
-    local s="$1" _bs _dq
-    _bs=$'\\'
-    _dq='"'
-    s=${s//"$_bs"/"$_bs$_bs"}
-    s=${s//"$_dq"/"$_bs$_dq"}
-    # JSON forbids a literal control character inside a string, so escaping only
-    # backslash and quote still emits invalid JSON for a multi-line command body
-    # or an evidence string carrying a tab -- which is exactly what a `pattern: |`
-    # block and a grep hit produce.
-    s=${s//$'\n'/\\n}
-    s=${s//$'\r'/\\r}
-    s=${s//$'\t'/\\t}
-    printf '%s' "$s"
-}
 
 # Evaluate a `type: command` precondition. Sets precond_reject to the
 # allowlist's reason when the command was REFUSED rather than run: a refused
@@ -1177,9 +1204,9 @@ if ! $IGNORE_PRECONDITIONS; then
                         precond_detail="$precond_detail — $precond_desc"
                     fi
                     precond_reason="$(precond_reason_text "$precond_type" "$precond_detail")"
-                    if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: $precond_reason${NC}"; fi
+                    if ! $JSON_MODE; then printf '%s\n' "${YELLOW}⊘ Skipping $(term_safe "$precond_skill_id"): $(term_safe "$precond_reason")${NC}"; fi
                     cat << PRECOND_EOF
-{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "$(json_escape "$precond_reason")"}
+{"checkpoint_file": "$CHECKPOINT_FILE_JSON", "skill_id": "$(json_escape "$precond_skill_id")", "status": "skipped", "reason": "$(json_escape "$precond_reason")"}
 PRECOND_EOF
                     exit 0
                 fi
@@ -1237,9 +1264,9 @@ PRECOND_EOF
                 precond_detail="$precond_detail — $precond_desc"
             fi
             precond_reason="$(precond_reason_text "$precond_type" "$precond_detail")"
-            if ! $JSON_MODE; then echo -e "${YELLOW}⊘ Skipping $precond_skill_id: $precond_reason${NC}"; fi
+            if ! $JSON_MODE; then printf '%s\n' "${YELLOW}⊘ Skipping $(term_safe "$precond_skill_id"): $(term_safe "$precond_reason")${NC}"; fi
             cat << PRECOND_EOF
-{"checkpoint_file": "$CHECKPOINT_FILE", "skill_id": "$precond_skill_id", "status": "skipped", "reason": "$(json_escape "$precond_reason")"}
+{"checkpoint_file": "$CHECKPOINT_FILE_JSON", "skill_id": "$(json_escape "$precond_skill_id")", "status": "skipped", "reason": "$(json_escape "$precond_reason")"}
 PRECOND_EOF
             exit 0
         fi
@@ -1328,7 +1355,7 @@ while IFS= read -r line; do
     if [[ "$line" =~ ^version:[[:space:]]*([0-9]+)$ ]]; then
         SCHEMA_VERSION="${BASH_REMATCH[1]}"
         if [[ "$SCHEMA_VERSION" != "1" && "$SCHEMA_VERSION" != "2" ]]; then
-            echo -e "${RED}Error: Unsupported schema version: $SCHEMA_VERSION${NC}" >&2
+            printf '%s\n' "${RED}Error: Unsupported schema version: $(term_safe "$SCHEMA_VERSION")${NC}" >&2
             exit 1
         fi
         continue
@@ -1337,7 +1364,7 @@ while IFS= read -r line; do
     # Extract skill_id
     if [[ "$line" =~ ^skill_id:[[:space:]]*(.+)$ ]]; then
         SKILL_ID="${BASH_REMATCH[1]}"
-        if ! $JSON_MODE; then echo -e "${BLUE}Skill: $SKILL_ID${NC}"; fi
+        if ! $JSON_MODE; then printf '%s\n' "${BLUE}Skill: $(term_safe "$SKILL_ID")${NC}"; fi
         continue
     fi
 
@@ -1510,18 +1537,18 @@ fi
 
 if ! $JSON_MODE; then
     echo "----------------------------------------"
-    echo -e "Summary: ${GREEN}$PASS_COUNT passed${NC}, ${RED}$FAIL_COUNT failed${NC}, ${YELLOW}$SKIP_COUNT skipped${NC}, ${BLUE}$BLOCK_COUNT blocked${NC}"
+    printf '%s\n' "Summary: ${GREEN}$PASS_COUNT passed${NC}, ${RED}$FAIL_COUNT failed${NC}, ${YELLOW}$SKIP_COUNT skipped${NC}, ${BLUE}$BLOCK_COUNT blocked${NC}"
     # Show fix hint if there were failures
     if [[ $FAIL_COUNT -gt 0 ]]; then
         FIX_CMD=$(skill_fix_command "$SKILL_ID")
-        echo -e "  ${BLUE}→ Fix: run ${FIX_CMD} to address failures${NC}"
+        printf '%s\n' "  ${BLUE}→ Fix: run $(term_safe "$FIX_CMD") to address failures${NC}"
     fi
     # A blocked checkpoint says nothing about the project — the fix belongs to
     # the checkpoint file, and it is findable before an assessment ever runs.
     if [[ $BLOCK_COUNT -gt 0 ]]; then
-        echo -e "  ${BLUE}→ $BLOCK_COUNT checkpoint(s) never ran (command refused by the allowlist)."
-        echo -e "    These are NOT findings about this project. Fix the checkpoint file:"
-        echo -e "    validate-checkpoints.sh $CHECKPOINT_FILE${NC}"
+        printf '%s\n' "  ${BLUE}→ $BLOCK_COUNT checkpoint(s) never ran (command refused by the allowlist)."
+        printf '%s\n' "    These are NOT findings about this project. Fix the checkpoint file:"
+        printf '%s\n' "    validate-checkpoints.sh $(term_safe "$CHECKPOINT_FILE")${NC}"
     fi
     echo "----------------------------------------"
 fi
@@ -1531,16 +1558,19 @@ TOTAL=$((PASS_COUNT + FAIL_COUNT + SKIP_COUNT + BLOCK_COUNT))
 JSON_RESULTS=$(IFS=,; echo "${RESULTS[*]}")
 JSON_GATED_OUT=""
 if [[ ${#GATED_OUT_IDS[@]} -gt 0 ]]; then
-    JSON_GATED_OUT=$(printf '"%s",' "${GATED_OUT_IDS[@]}")
+    JSON_GATED_OUT=""
+    for _gid in "${GATED_OUT_IDS[@]}"; do
+        JSON_GATED_OUT+="\"$(json_escape "$_gid")\","
+    done
     JSON_GATED_OUT="${JSON_GATED_OUT%,}"
 fi
 
 cat << EOF
 {
-  "checkpoint_file": "$CHECKPOINT_FILE",
-  "project_root": "$PROJECT_ROOT",
-  "skill_id": "$SKILL_ID",
-  "fix_command": "$(skill_fix_command "$SKILL_ID")",
+  "checkpoint_file": "$CHECKPOINT_FILE_JSON",
+  "project_root": "$(json_escape "$PROJECT_ROOT")",
+  "skill_id": "$(json_escape "$SKILL_ID")",
+  "fix_command": "$(json_escape "$(skill_fix_command "$SKILL_ID")")",
   "schema_version": $SCHEMA_VERSION,
   "summary": {
     "total": $TOTAL,
