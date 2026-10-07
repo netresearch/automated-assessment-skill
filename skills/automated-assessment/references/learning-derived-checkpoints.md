@@ -78,7 +78,7 @@ The historical `value:` field appears in a few older `agent-harness` AH-* entrie
 
 1. Inspect the target skill's existing `checkpoints.yaml`.
 2. Identify the numbering convention in use.
-3. Pick the next free ID matching that convention.
+3. Pick the next free ID matching that convention, counting IDs already taken in open pull requests of that repository (see `checkpoints-schema.md` § Checkpoint IDs for the command).
 4. Document the choice in the PR body so reviewers see the reasoning.
 
 Format the ID as `<PREFIX>-<NN>` (single hyphen between prefix and number). Don't write `<PREFIX>NN` (no hyphen) or `<PREFIX>--<NN>` (double hyphen).
@@ -198,7 +198,7 @@ When `/retro` proposes a `checkpoint` destination:
 1. **Locate** target skill's `checkpoints.yaml` (via discovery → repo URL → clone/worktree).
 2. **Read** the existing file: identify `skill_id`, existing IDs, numbering convention.
 3. **Choose** check type from the 10 canonical types (prefer `file_exists`/`contains`/`regex` over `command` when possible).
-4. **Assign** next free ID matching the existing convention.
+4. **Assign** next free ID matching the existing convention, above the highest ID in the file and in open PRs (see ID convention above).
 5. **Set** severity per guidance above.
 6. **Set** `fix_skill` if the fix is owned by a different skill than the one hosting the checkpoint.
 7. **Draft** the YAML block aligned with `references/checkpoints-schema.md`.
