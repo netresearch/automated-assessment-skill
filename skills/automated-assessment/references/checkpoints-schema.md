@@ -796,7 +796,7 @@ Checkpoint IDs are stable public identifiers — they appear in assessment repor
 `checkpoints.yaml` on `main` does not show IDs that open pull requests have already taken. Search those too, and take the next number after the highest of the file and all open PRs (TC-188 was assigned while `netresearch/typo3-conformance-skill#161` held TC-188..TC-193 and had to be renumbered):
 
 ```bash
-for n in $(gh pr list --state open --limit 100 --json number --jq '.[].number'); do
+for n in $(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' --jq '.[].number'); do
   gh pr diff "$n" | grep -oE '^\+[[:space:]]+- id: <PREFIX>-[0-9]+' | grep -oE '[0-9]+$' || true
 done | sort -n | tail -1
 ```
