@@ -418,6 +418,39 @@ check "regex: an existing listed file without the pattern fails" \
     "$(jq -r '.checkpoints[] | select(.id=="BR-03") | "\(.status) \(.evidence)"' <<<"$bout")"
 check "regex: a missing single plain target still fails" fail "$(bstatus BR-04)"
 
+# --- file names from the assessed project in the report and on the terminal --
+#
+# Evidence carries the names of files in the project under assessment, and a
+# file name may hold any byte but `/` and NUL. The JSON report must stay valid
+# and carry the name unchanged; the terminal line must show control characters
+# as visible text rather than pass them to the terminal.
+mkdir -p "$WORK/names"
+odd=$(printf 'odd\\q"x\t\033[31mred\001.txt')
+printf 'marker\n' > "$WORK/names/$odd"
+cat > "$WORK/names.yaml" <<'EOF'
+version: 1
+skill_id: demo
+
+mechanical:
+  - id: NM-01
+    type: not_contains
+    target: "odd*"
+    pattern: "marker"
+    severity: error
+    desc: "a file name with a backslash, a quote and control characters"
+EOF
+nout=$( cd "$WORK" && bash "$RUNNER" --json "$WORK/names.yaml" "$WORK/names" 2>/dev/null )
+check "the report is valid JSON with an odd file name" yes \
+    "$(jq -e . >/dev/null 2>&1 <<<"$nout" && echo yes || echo no)"
+check "the evidence carries the file name unchanged" yes \
+    "$(jq -r '.checkpoints[] | select(.id=="NM-01") | .evidence' <<<"$nout" | cmp -s - <(printf 'Pattern should not be in %s\n' "$odd") && echo yes || echo no)"
+tout=$( cd "$WORK" && bash "$RUNNER" "$WORK/names.yaml" "$WORK/names" 2>/dev/null )
+tline=$(grep -F 'NM-01' <<<"$tout")
+check "the terminal line shows the control characters as text" yes \
+    "$(grep -qF 'odd\q"x\x09\x1b[31mred\x01.txt' <<<"$tline" && echo yes || echo no)"
+check "the terminal line holds one escape sequence pair, the status colour" 2 \
+    "$(grep -o $'\033' <<<"$tline" | wc -l | tr -d ' ')"
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "All run-checkpoints smoke tests passed"
