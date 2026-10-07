@@ -35,16 +35,18 @@
 # whose only justification is stopping a malicious author: that one has
 # `awk` and is already past you.
 #
-# Every command word is classified: the first word of the pattern, the first
-# word after each `|`, the command a wrapper runs (found with that wrapper's
-# own option grammar, so `xargs -n 1 X`, `xargs -r -I {} X` and
-# `timeout 5 X` all reach X) and the first word of each process
-# substitution. Each must be on the whitelist or under vendor/bin/. What the
-# parser cannot classify is refused: a wrapper or wrapper option outside
-# its grammar, `$'...'` quoting outside single quotes, `$"..."` quoting
-# and brace expansion outside quotes, a quote inside `${...}` or a blank
-# inside an unquoted one, an unclosed
-# process substitution.
+# The command words this file finds are classified: the first word of the
+# pattern, the first word after each `|`, the command a wrapper runs (found
+# with that wrapper's own option grammar, so `xargs -n 1 X`,
+# `xargs -r -I {} X` and `timeout 5 X` all reach X) and the first word of
+# each process substitution. Each must be on the whitelist or under
+# vendor/bin/. Constructs this file does not model are refused: a wrapper
+# or wrapper option outside its grammar, `$'...'` quoting outside single
+# quotes, `$"..."` quoting and brace expansion outside quotes, a quote
+# inside `${...}` or a blank inside an unquoted one, an unclosed process
+# substitution. This is a reading of bash's grammar, not bash itself: it
+# holds for the spellings tests/command-allowlist.sh pins, and a spelling
+# that bash splits differently from this file can still pass.
 #
 # KNOWN-OPEN, deliberately (all verified to execute; none is an accident
 # shape, and closing them rejects legitimate checkpoints — a false reject
