@@ -215,10 +215,17 @@ split_shell_words() {
             continue
         elif (( ! insq && ! indq )) && [[ "$c" == '<' || "$c" == '>' || ( "$c" == '&' && "${s:i+1:1}" == '>' ) ]]; then
             # `<` and `>` end a word for bash, so a redirection glued to a
-            # word (`-I>/dev/null`) starts a word of its own. A word that is
-            # only an fd number or operator characters (`2`, `>`, `2>`) is
-            # the start of that same redirection and keeps it.
-            if (( inword )) && ! [[ "$word" =~ ^[0-9]*[\<\>\&]*$ ]]; then
+            # word (`-I>/dev/null`) starts a word of its own. Before `<`/`>`
+            # a word that is only an fd number or operator characters (`2`,
+            # `>`, `2>`) is the start of that same redirection and keeps it.
+            # `&>` takes no fd number: in `1&>f` the `1` is an argument, so
+            # only a word ending in `<`/`>` (the `>&` form) keeps the `&`.
+            if [[ "$c" == '&' ]]; then
+                if (( inword )) && ! [[ "$word" =~ [\<\>]$ ]]; then
+                    printf '%s\0' "$word"
+                    word=""
+                fi
+            elif (( inword )) && ! [[ "$word" =~ ^[0-9]*[\<\>\&]*$ ]]; then
                 printf '%s\0' "$word"
                 word=""
             fi
@@ -733,8 +740,8 @@ is_safe_eval_command() {
         _i=0
         while (( _i < ${#_toks[@]} )); do
             _raw="${_toks[_i]}"
-            if [[ "$_raw" =~ ^[0-9]*(\<|\>|\&\>) ]]; then
-                if [[ "$_raw" =~ ^[0-9]*(\<\<\<|\<\<|\<\>|\<\&|\>\>|\>\&|\>\||\&\>\>|\&\>|\<|\>)$ ]]; then
+            if [[ "$_raw" =~ ^([0-9]*(\<|\>)|\&\>) ]]; then
+                if [[ "$_raw" =~ ^([0-9]*(\<\<\<|\<\<|\<\>|\<\&|\>\>|\>\&|\>\||\<|\>)|\&\>\>|\&\>)$ ]]; then
                     _i=$(( _i + 2 ))
                 else
                     _i=$(( _i + 1 ))
