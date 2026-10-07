@@ -421,9 +421,10 @@ check "regex: a missing single plain target still fails" fail "$(bstatus BR-04)"
 # --- file names from the assessed project in the report and on the terminal --
 #
 # Evidence carries the names of files in the project under assessment, and a
-# file name may hold any byte but `/` and NUL. The JSON report must stay valid
-# and carry the name unchanged; the terminal line must show control characters
-# as visible text rather than pass them to the terminal.
+# file name may hold any byte but `/` and NUL. For a UTF-8 name holding
+# quotes, backslashes and control characters the JSON report must stay valid
+# and carry the name unchanged; the terminal line must show control
+# characters as visible text rather than pass them to the terminal.
 mkdir -p "$WORK/names"
 odd=$(printf 'odd\\q"x\t\033[31mred\001.txt')
 printf 'marker\n' > "$WORK/names/$odd"
