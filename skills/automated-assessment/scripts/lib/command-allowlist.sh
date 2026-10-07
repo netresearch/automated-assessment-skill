@@ -35,29 +35,32 @@
 # whose only justification is stopping a malicious author: that one has
 # `awk` and is already past you.
 #
-# KNOWN-OPEN, deliberately (all verified to execute; none is an accident
-# shape, and every attempt to close them rejected legitimate checkpoints —
-# a false reject silently disables a real check, which is the worse failure):
+# Every command word is classified: the first word of the pattern, the first
+# word after each `|`, the command a wrapper runs (found with that wrapper's
+# own option grammar, so `xargs -n 1 X`, `xargs -r -I {} X` and
+# `timeout 5 X` all reach X) and the first word of each process
+# substitution. Each must be on the whitelist or under vendor/bin/. What the
+# parser cannot classify is refused: a wrapper or wrapper option outside
+# its grammar, `$'...'`/`$"..."` quoting, brace expansion, an unclosed
+# process substitution.
 #
-#   * Expansion splices other than $IFS: `xargs ${x:-rm} -rf dir`,
-#     `xargs r${x}m -rf dir`, `xargs rm$1 -r dir`, `cat f | ${x:-sh}`.
-#     Substituting expansions away and re-scanning catches these, and also
-#     rejects `grep -rq 'rm${IFS}-rf' scripts/` — a checkpoint auditing a
-#     project for this very trick — because bash does not expand inside
-#     single quotes but a text substitution does not know that.
+# KNOWN-OPEN, deliberately (all verified to execute; none is an accident
+# shape, and closing them rejects legitimate checkpoints — a false reject
+# silently disables a real check, which is the worse failure):
+#
+#   * Expansion splices in ARGUMENT position: `find . -exe${x:-c} sh -c
+#     id {} +`. In command position a splice is not a whitelisted word and
+#     is refused; in an argument it is indistinguishable from `"$f"`.
+#     Substituting expansions away and re-scanning also rejects
+#     `grep -rq 'rm${IFS}-rf' scripts/` — a checkpoint auditing a project
+#     for this very trick — because bash does not expand inside single
+#     quotes but a text substitution does not know that.
 #   * Traversal spelled through an expansion: `.$1./evil` resolves to
 #     `../evil` with no literal `..` anywhere in the text.
-#   * A wrapper that takes its command after a value-bearing flag:
-#     `xargs -n 1 scripts/x`, `| timeout 5 scripts/x`. The wrapper list
-#     itself cannot be complete either: `| time scripts/x` passes too.
-#   * A shell reached through an allowlisted wrapper: `| env sh -c '...'`.
-#     Requiring each pipe segment's command word to be on the whitelist
-#     closes it and rejects `xargs -r -I {} test -e {}`, where `{}` is the
-#     flag's value, not the command.
 #
-# Before "fixing" one of these, re-run tests/command-allowlist.sh AND the
-# estate sweep it documents. Each entry above is a fix that was written,
-# measured against real checkpoints, and reverted.
+# Before changing a rule here, run tests/command-allowlist.sh AND score every
+# one-line command of the installed checkpoint files with the old and the new
+# rule: a verdict that flips on a real checkpoint is a regression until read.
 #
 # Sourced, never executed.
 
@@ -183,6 +186,194 @@ strip_quotes() {
     printf '%s' "$s"
 }
 
+# Constructs outside quotes that let bash build argv bytes or words the text
+# checks never see, so no verdict reached on the text holds for what runs:
+#   * `$'...'` / `$"..."` quoting: `$'\055r'` is `-r`.
+#   * brace expansion: `{rm,-rf}` is two words, `r{m,}` is `rm`.
+# A `{...}` without an unquoted comma (`{}`, gh's `{owner}`) and anything in
+# single or double quotes (a regex `a{1,3}`, a jq program) stay accepted.
+# Returns 0 and prints the reason when one is found.
+has_unclassifiable_construct() {
+    local s="$1" c next insq=0 indq=0 depth=0 i bs
+    bs=$'\\'
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        if (( ! insq )) && [[ "$c" == "$bs" ]]; then
+            i=$(( i + 1 ))
+            continue
+        fi
+        if (( ! indq )) && [[ "$c" == "'" ]]; then
+            insq=$(( 1 - insq ))
+            continue
+        elif (( ! insq )) && [[ "$c" == '"' ]]; then
+            indq=$(( 1 - indq ))
+            continue
+        fi
+        (( insq || indq )) && continue
+        next="${s:i+1:1}"
+        if [[ "$c" == '$' && ( "$next" == "'" || "$next" == '"' ) ]]; then
+            echo "pattern uses \$'...'/\$\"...\" quoting, which spells bytes the checks cannot read"
+            return 0
+        fi
+        if [[ "$c" == '{' ]]; then
+            depth=$(( depth + 1 ))
+        elif [[ "$c" == '}' ]] && (( depth > 0 )); then
+            depth=$(( depth - 1 ))
+        elif [[ "$c" == ',' ]] && (( depth > 0 )); then
+            echo "pattern uses brace expansion ({a,b}), which builds words the checks cannot read"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Process substitution `<(cmd)` / `>(cmd)` runs `cmd` as a command of its own.
+# Sets PROCSUB_TEXT to the pattern with each substitution replaced by the word
+# PROCSUB and PROCSUB_BODIES to the bodies, so the caller can screen each body
+# as a command and the remaining text without them. Quote tracking as in
+# split_top_level_pipes: a `<(` inside quotes is data. Returns 1 when a
+# substitution is not closed.
+PROCSUB_TEXT=""
+PROCSUB_BODIES=()
+extract_process_substitutions() {
+    local s="$1" out="" c insq=0 indq=0 i j depth body bs bq bd
+    bs=$'\\'
+    PROCSUB_BODIES=()
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        if (( ! insq )) && [[ "$c" == "$bs" ]]; then
+            out+="$c${s:i+1:1}"
+            i=$(( i + 1 ))
+            continue
+        fi
+        if (( ! indq )) && [[ "$c" == "'" ]]; then
+            insq=$(( 1 - insq ))
+        elif (( ! insq )) && [[ "$c" == '"' ]]; then
+            indq=$(( 1 - indq ))
+        elif (( ! insq && ! indq )) && [[ ( "$c" == '<' || "$c" == '>' ) && "${s:i+1:1}" == '(' ]]; then
+            depth=1 body="" bq=0 bd=0
+            for (( j = i + 2; j < ${#s}; j++ )); do
+                c="${s:j:1}"
+                if (( ! bq )) && [[ "$c" == "$bs" ]]; then
+                    body+="$c${s:j+1:1}"
+                    j=$(( j + 1 ))
+                    continue
+                fi
+                if (( ! bd )) && [[ "$c" == "'" ]]; then
+                    bq=$(( 1 - bq ))
+                elif (( ! bq )) && [[ "$c" == '"' ]]; then
+                    bd=$(( 1 - bd ))
+                elif (( ! bq && ! bd )) && [[ "$c" == '(' ]]; then
+                    depth=$(( depth + 1 ))
+                elif (( ! bq && ! bd )) && [[ "$c" == ')' ]]; then
+                    depth=$(( depth - 1 ))
+                    (( depth == 0 )) && break
+                fi
+                body+="$c"
+            done
+            (( depth == 0 )) || return 1
+            PROCSUB_BODIES+=("$body")
+            out+="PROCSUB"
+            i=$j
+            continue
+        fi
+        out+="$c"
+    done
+    PROCSUB_TEXT="$out"
+    return 0
+}
+
+# Where the command a wrapper runs starts. Reads the global array WRAP_TOKENS
+# (quote-stripped words of one pipe segment) from index <start>, the word after
+# the wrapper, and prints the index of the wrapped command word, or the array
+# length when the wrapper runs nothing named here (`xargs` alone runs echo).
+# Each wrapper's options are parsed by its own grammar, so a flag's value
+# (`-n 1`, `-I {}`, timeout's duration) is never taken for the command and the
+# command behind it is never taken for a value. An option outside the grammar
+# returns 1 with a reason: what cannot be classified is not run.
+WRAP_TOKENS=()
+wrapped_command_index() {
+    local w="$1" i="$2" n=${#WRAP_TOKENS[@]} t name k ch
+    local vals="" bools="" optional="" lvals="" lbools="" positional=0 assign=0 numeric=0
+    case "$w" in
+        xargs)
+            vals=adEILnPs bools=0prtxo optional=eil
+            lvals=" arg-file delimiter eof replace max-lines max-args max-procs max-chars process-slot-var "
+            lbools=" null interactive no-run-if-empty verbose exit open-tty " ;;
+        env)
+            vals=uC bools=i0v assign=1
+            lvals=" unset chdir " lbools=" ignore-environment null debug " ;;
+        nohup) ;;
+        timeout)
+            vals=sk bools=v positional=1
+            lvals=" signal kill-after " lbools=" preserve-status foreground verbose " ;;
+        nice)
+            vals=n numeric=1 lvals=" adjustment " ;;
+        stdbuf)
+            vals=ioe lvals=" input output error " ;;
+        command)
+            bools=pvV ;;
+        *)
+            echo "'$w' is not a wrapper this allowlist can parse"
+            return 1 ;;
+    esac
+    while (( i < n )); do
+        t="${WRAP_TOKENS[i]}"
+        if [[ "$t" == "--" ]]; then
+            i=$(( i + 1 ))
+            break
+        elif [[ "$t" == --* ]]; then
+            name="${t#--}"
+            if [[ "$name" == *=* ]]; then
+                [[ "$lvals" == *" ${name%%=*} "* ]] || { echo "'$w' option '--${name%%=*}' is not one this allowlist can parse"; return 1; }
+                i=$(( i + 1 ))
+            elif [[ "$lvals" == *" $name "* ]]; then
+                i=$(( i + 2 ))
+            elif [[ "$lbools" == *" $name "* ]]; then
+                i=$(( i + 1 ))
+            else
+                echo "'$w' option '--$name' is not one this allowlist can parse"
+                return 1
+            fi
+        elif [[ "$t" == -?* ]]; then
+            if (( numeric )) && [[ "$t" =~ ^-[0-9]+$ ]]; then
+                i=$(( i + 1 ))
+                continue
+            fi
+            i=$(( i + 1 ))
+            for (( k = 1; k < ${#t}; k++ )); do
+                ch="${t:k:1}"
+                if [[ -n "$vals" && "$vals" == *"$ch"* ]]; then
+                    # The value is the rest of the word, or the next word.
+                    (( k + 1 == ${#t} )) && i=$(( i + 1 ))
+                    break
+                elif [[ -n "$optional" && "$optional" == *"$ch"* ]]; then
+                    break
+                elif [[ -n "$bools" && "$bools" == *"$ch"* ]]; then
+                    continue
+                else
+                    echo "'$w' option '-$ch' is not one this allowlist can parse"
+                    return 1
+                fi
+            done
+        elif (( assign )) && [[ "$t" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+            i=$(( i + 1 ))
+        else
+            break
+        fi
+    done
+    # Positional operands before the command (timeout's DURATION).
+    while (( positional > 0 && i < n )); do
+        i=$(( i + 1 ))
+        positional=$(( positional - 1 ))
+    done
+    (( assign )) && while (( i < n )) && [[ "${WRAP_TOKENS[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+        i=$(( i + 1 ))
+    done
+    (( i > n )) && i=$n
+    printf '%s' "$i"
+}
+
 # Static screen for multi-line `type: script` checkpoint bodies.
 #
 # A multi-line body cannot pass is_safe_eval_command, and meaningfully so:
@@ -258,9 +449,9 @@ command_base_word() {
 # safe.
 #
 # Applied wherever `gh` is a command word: first in the pattern, after a
-# `|`, or behind a wrapper (`| xargs gh ...`), but not behind a wrapper flag
-# that takes a separate value (see KNOWN-OPEN in the header). A check on the
-# first word alone let `grep -q x f | gh repo edit ...` through.
+# `|`, behind a wrapper and its options (`| xargs -n 1 gh ...`), or first in
+# a process substitution. A check on the first word alone let
+# `grep -q x f | gh repo edit ...` through.
 #
 # Usage: gh_readonly_check <subcommand word> <text the flag checks read>
 # Returns 0 if allowed, 1 if rejected (with reason on stdout).
@@ -360,6 +551,28 @@ is_safe_eval_command() {
         return 1
     fi
 
+    local _construct
+    if _construct=$(has_unclassifiable_construct "$pattern"); then
+        echo "$_construct"
+        return 1
+    fi
+
+    # Each `<(...)`/`>(...)` body is a command of its own and gets the whole
+    # screen; the rest of this function reads the pattern without them, so a
+    # `|` inside a body does not split the outer pipeline.
+    if ! extract_process_substitutions "$pattern"; then
+        echo "pattern has an unclosed process substitution"
+        return 1
+    fi
+    local _outer="$PROCSUB_TEXT" _body _body_reason
+    local -a _bodies=("${PROCSUB_BODIES[@]}")
+    for _body in "${_bodies[@]}"; do
+        if ! _body_reason=$(is_safe_eval_command "$_body"); then
+            echo "process substitution: $_body_reason"
+            return 1
+        fi
+    done
+
     # Whitelist of allowed base commands for checkpoint execution.
     # Includes shell control keywords + builtins — these don't execute
     # external commands themselves; the body still runs through the same
@@ -438,49 +651,60 @@ is_safe_eval_command() {
     # rejected above, leaving `|` as the only separator that can start a
     # new command.
     #
-    # The wrapper list cannot be complete, and a wrapper that takes its
-    # command after a VALUE-bearing flag (`xargs -n 1 scripts/x`,
-    # `| timeout 5 scripts/x`) still hides it. See the header's KNOWN-OPEN list.
-    local -a _cmd_takers=(xargs env nohup timeout watch command nice stdbuf setsid ionice chrt taskset flock)
-    local _seg _t _bare _taker _cw _i
+    # Every command word gets the rule the first word gets: a `./` or
+    # path-prefixed word only under vendor/bin, and otherwise a word from
+    # the whitelist. A wrapper (`xargs`, `env`, `timeout`, ...) is parsed
+    # with its own option grammar (wrapped_command_index), so the word it
+    # runs is found behind `-n 1`, `-I {}` or a duration, and a wrapper or
+    # an option outside that grammar is refused rather than guessed at.
+    local _seg _bare _cw _i _next _wrapped _known _acmd
     local -a _segs _toks
     # Split the RAW pattern, not the backslash-stripped one: the quote
     # tracker needs the backslashes to recognise an escaped quote.
-    # Newlines first — they are the segment separator below.
-    local _flat="${pattern//$'\n'/ }"
+    # Newlines first — they are the segment separator below. Process
+    # substitutions were screened above and are a placeholder word here.
+    local _flat="${_outer//$'\n'/ }"
     mapfile -t _segs < <(split_top_level_pipes "$_flat")
     local _segno=-1
     for _seg in "${_segs[@]}"; do
         _segno=$(( _segno + 1 ))
         # shellcheck disable=SC2206  # word splitting is the point; globbing is off
         _toks=(${_seg#!})
-        _taker=false
-        for (( _i = 0; _i < ${#_toks[@]}; _i++ )); do
-            _bare=$(strip_quotes "${_toks[_i]}")
-            _bare=${_bare//"$_bs"/}
+        WRAP_TOKENS=()
+        for _bare in "${_toks[@]}"; do
+            _bare=$(strip_quotes "$_bare")
+            WRAP_TOKENS+=("${_bare//"$_bs"/}")
+        done
+        _wrapped=false
+        _i=0
+        while (( _i < ${#WRAP_TOKENS[@]} )); do
+            _bare="${WRAP_TOKENS[_i]}"
             # A subshell or group opener in front of the word hides it
             # from every test below: `| (gh repo delete ...)` runs gh.
             while [[ "${_bare:0:1}" == "(" || "${_bare:0:1}" == "{" ]]; do _bare=${_bare:1}; done
-            [[ -z "$_bare" ]] && continue
-            # Leading redirections and VAR=value assignments precede the
-            # command word; bash allows both, so skip past them rather
-            # than mistaking one for the command (`| >out './evil'`).
-            [[ "$_bare" == *'>'* || "$_bare" == '<'* ]] && continue
-            [[ "$_bare" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
-            # A wrapper's own flags are not the wrapped command either.
-            $_taker && [[ "$_bare" == -* ]] && continue
+            if [[ -z "$_bare" ]]; then
+                _i=$(( _i + 1 ))
+                continue
+            fi
+            # Redirections (`>out`, `2>/dev/null`, `3<f`, `&>x`, `<<<s`)
+            # and VAR=value assignments may precede the command word; an
+            # operator standing alone takes the next word as its target.
+            if [[ "$_bare" =~ ^[0-9]*(\<|\>|\&\>) ]]; then
+                if [[ "$_bare" =~ ^[0-9]*(\<\<\<|\<\<|\<\>|\<\&|\>\>|\>\&|\>\||\&\>\>|\&\>|\<|\>)$ ]]; then
+                    _i=$(( _i + 2 ))
+                else
+                    _i=$(( _i + 1 ))
+                fi
+                continue
+            fi
+            if [[ "$_bare" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+                _i=$(( _i + 1 ))
+                continue
+            fi
             _cw="$_bare"
             if [[ "$_cw" == ./* && "$_cw" != ./vendor/bin/* ]]; then
                 (( _reset_f )) || set +f
                 echo "pattern executes './${_cw#./}' in command position; only ./vendor/bin/* is allowed"
-                return 1
-            fi
-            # `$'...'`/`$"..."` can spell a command word in bytes that
-            # quote removal does not reproduce; the gh branch rejects
-            # this class outright and command position is no different.
-            if [[ "${_toks[_i]}" == *'$'\'* || "${_toks[_i]}" == *'$"'* ]]; then
-                (( _reset_f )) || set +f
-                echo "pattern spells a command word with \$'...'/\$\"...\" quoting"
                 return 1
             fi
             # `cmd_base` applies the whitelist to the pattern's FIRST
@@ -492,28 +716,43 @@ is_safe_eval_command() {
                 echo "'$_cw' has path prefix; only vendor/bin/* (with optional ./) is allowed"
                 return 1
             fi
-            # `gh` in any command position gets the same read-only rule as
-            # `gh` first in the pattern; the first word itself is checked
-            # below, with the whitelist, so its messages stay as they were.
-            if [[ "$_cw" == "gh" ]] && { (( _segno > 0 )) || $_taker; }; then
-                local _ghsub=""
-                (( _i + 1 < ${#_toks[@]} )) && _ghsub=$(strip_quotes "${_toks[_i+1]}")
-                if ! gh_readonly_check "$_ghsub" "${_toks[*]:_i}"; then
-                    (( _reset_f )) || set +f
-                    return 1
-                fi
-            fi
             # A wrapper's wrapped command is the next command word, and that
-            # word may be a wrapper again (`xargs env gh ...`), so every
-            # command word is tested, not only the first; anything that is
-            # not a wrapper ends this segment's command position.
-            local _is_taker=false
-            for _t in "${_cmd_takers[@]}"; do
-                [[ "$_cw" == "$_t" ]] && _is_taker=true && break
-            done
-            if $_is_taker; then
-                _taker=true
-                continue
+            # word may be a wrapper again (`xargs env gh ...`).
+            case "$_cw" in
+                xargs|env|nohup|timeout|nice|stdbuf|command)
+                    if ! _next=$(wrapped_command_index "$_cw" $(( _i + 1 ))); then
+                        (( _reset_f )) || set +f
+                        echo "$_next"
+                        return 1
+                    fi
+                    _i=$_next
+                    _wrapped=true
+                    continue ;;
+            esac
+            # The first word of the first segment is checked below, with
+            # its own messages; every other command word is checked here.
+            if (( _segno > 0 )) || $_wrapped; then
+                if [[ "$_cw" != vendor/bin/* && "$_cw" != ./vendor/bin/* ]]; then
+                    _known=false
+                    for _acmd in "${allowed_cmds[@]}"; do
+                        [[ "$_cw" == "$_acmd" ]] && _known=true && break
+                    done
+                    if ! $_known; then
+                        (( _reset_f )) || set +f
+                        echo "'$_cw' (command word after a pipe or a wrapper) not in allowed command whitelist"
+                        return 1
+                    fi
+                fi
+                # `gh` in any command position gets the same read-only rule
+                # as `gh` first in the pattern.
+                if [[ "$_cw" == "gh" ]]; then
+                    local _ghsub=""
+                    (( _i + 1 < ${#WRAP_TOKENS[@]} )) && _ghsub="${WRAP_TOKENS[_i+1]}"
+                    if ! gh_readonly_check "$_ghsub" "${_toks[*]:_i}"; then
+                        (( _reset_f )) || set +f
+                        return 1
+                    fi
+                fi
             fi
             break
         done

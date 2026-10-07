@@ -220,6 +220,68 @@ verdict accept 'jq -e "[.a // {}] | add | to_entries[] | select(.k == \"x\")" co
 verdict accept "grep -rqE '(api_key|token)[:=][\"'\\''](sk-|AKIA|ghp_)' SKILL.md"
 verdict accept "grep -oP 'x' AGENTS.md | xargs -r -I {} test -e {}"
 
+# --- every command word is classified, or the pattern is refused -----------
+# The whitelist used to apply to the pattern's first word only: any command
+# after a pipe ran unless it carried a path. Each pair below is a refused
+# spelling and the legitimate shape next to it that must keep running.
+verdict reject 'grep -q x f | zsh -c id'
+verdict reject 'grep -q x f | perl -e 1'
+verdict reject 'grep -q x f | time scripts/x'
+verdict reject 'grep -q x f | coproc gh repo delete o/r'
+verdict accept 'grep -q x f | wc -l'
+verdict reject 'grep -q x f | env sh -c id'
+verdict accept 'echo repos/o/r | xargs env gh api --jq .name'
+# A wrapper's options are parsed with that wrapper's grammar, so the word it
+# runs is found behind a value-taking flag or a duration.
+verdict reject 'grep -q x f | xargs -n 1 scripts/x'
+verdict reject 'grep -q x f | xargs -n1 gh repo delete o/r'
+verdict reject 'grep -q x f | xargs --max-args 1 scripts/x'
+verdict reject 'grep -q x f | timeout 5 scripts/x'
+verdict reject 'grep -q x f | timeout -s KILL 5 gh repo delete o/r'
+verdict reject 'grep -q x f | nice -n 5 zsh'
+verdict accept 'grep -q x f | xargs -n 1 grep -l y'
+verdict accept 'grep -q x f | timeout 5 grep -q y f'
+verdict accept 'find . -name x -print0 | xargs -0 -r grep -lZE y'
+verdict accept 'grep -oP x AGENTS.md | xargs -r -I {} test -e {}'
+verdict accept 'grep -oP x AGENTS.md | xargs -r -I{} test -e {}'
+# An option outside a wrapper's grammar, or a wrapper with no grammar here,
+# cannot be classified and is refused.
+verdict reject 'grep -q x f | xargs --no-such-option grep y'
+verdict reject 'grep -q x f | xargs -Z grep -q y'
+verdict reject 'grep -q x f | env -S "sh -c id"'
+verdict reject 'grep -q x f | watch -n 1 grep y f'
+# Redirections in front of the command word, numbered and spaced included.
+verdict reject "grep -q x f | 3<f './evil'"
+verdict reject 'grep -q x f | 0<f scripts/evil'
+verdict reject 'grep -q x f | < f gh repo delete o/r'
+verdict reject 'grep -q x f | 2> err scripts/evil'
+verdict accept 'grep -q x f | 0<f grep -q y'
+verdict accept 'grep -q x f | 2> err grep -q y'
+# A process substitution runs its body as a command of its own.
+verdict reject 'cat <(scripts/x)'
+verdict reject 'grep -q x <(./evil)'
+verdict reject 'diff <(gh repo delete o/r) f'
+verdict reject 'cat <(grep -q x f | zsh)'
+verdict reject 'cat <(grep -q x f'
+verdict accept "cat <(find . -name x -print 2>/dev/null) <(grep -RlE 'a|b' .github/ 2>/dev/null) | grep -q ."
+verdict accept "grep -q '<(x)' f"
+# $'...' and $"..." quoting anywhere outside quotes: the bytes that run are
+# not the bytes the checks read.
+verdict reject "xargs rm \$'-r' dir"
+verdict reject "xargs rm \$'\\055r' dir"
+verdict reject 'grep -q x f | xargs rm $"-r" dir'
+verdict reject "find . -name x \$'-exec' sh -c id {} +"
+verdict accept "grep -q '\$'\"'\"'x' f"
+verdict accept "grep -rq 'echo \$\"x' ."
+# Brace expansion builds words after the checks have read the text.
+verdict reject 'xargs r{m,} -r dir'
+verdict reject 'xargs {rm,-rf} dir'
+verdict reject 'find . -name x {-exec,sh,-c,id,+}'
+verdict reject 'grep -q x f | xargs {gh,repo,delete,o/r}'
+verdict accept "grep -qE 'a{1,3}' f"
+verdict accept 'gh api repos/{owner}/{repo} --jq .name'
+verdict accept 'jq -e "[.a // {}, .b // {}] | add" composer.json'
+
 # --- the verdict may not depend on the working directory --------------------
 # Tokenizing with globbing live made `e* './evil'` resolve against the
 # cwd, so validate-checkpoints.sh (author's cwd) and run-checkpoints.sh
