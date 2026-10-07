@@ -272,6 +272,12 @@ verdict reject 'find . -name x | xargs A=b/x'
 verdict reject 'grep -q x f | timeout 5 A=b/x'
 verdict reject "find . -name x | xargs '>'d/x"
 verdict accept 'grep -q x f | LC_ALL=C grep -q y'
+# A redirection is not part of argv wherever it stands, also between a
+# wrapper's option and its value.
+verdict reject 'find . -name x | xargs -I > grep grep scripts/x'
+verdict reject 'grep -q x f | timeout > grep 5 scripts/x'
+verdict reject 'grep -q x f | xargs -I 2>grep grep scripts/x'
+verdict accept 'grep -q x f | xargs -n 1 2>/dev/null grep -q y'
 # Redirections in front of the command word, numbered and spaced included.
 verdict reject "grep -q x f | 3<f './evil'"
 verdict reject 'grep -q x f | 0<f scripts/evil'

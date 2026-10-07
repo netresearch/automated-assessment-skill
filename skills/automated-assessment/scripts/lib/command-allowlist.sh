@@ -715,6 +715,27 @@ is_safe_eval_command() {
         # Words as bash splits them: a quoted value with a blank in it is one
         # word, so it cannot pass for an option value and a command.
         mapfile -d '' -t _toks < <(split_shell_words "${_seg#!}")
+        # Bash removes every redirection from the words before it builds
+        # argv, wherever it stands, so it is dropped here first (with its
+        # target when that is the next word): what remains is what the
+        # command and any wrapper's option grammar actually receive.
+        # Recognised on the word as written: a quoted `">"x` is a word.
+        local -a _kept=()
+        _i=0
+        while (( _i < ${#_toks[@]} )); do
+            _raw="${_toks[_i]}"
+            if [[ "$_raw" =~ ^[0-9]*(\<|\>|\&\>) ]]; then
+                if [[ "$_raw" =~ ^[0-9]*(\<\<\<|\<\<|\<\>|\<\&|\>\>|\>\&|\>\||\&\>\>|\&\>|\<|\>)$ ]]; then
+                    _i=$(( _i + 2 ))
+                else
+                    _i=$(( _i + 1 ))
+                fi
+                continue
+            fi
+            _kept+=("$_raw")
+            _i=$(( _i + 1 ))
+        done
+        _toks=("${_kept[@]}")
         WRAP_TOKENS=()
         for _bare in "${_toks[@]}"; do
             _bare=$(strip_quotes "$_bare")
@@ -733,21 +754,11 @@ is_safe_eval_command() {
                 _i=$(( _i + 1 ))
                 continue
             fi
-            # Redirections (`>out`, `2>/dev/null`, `3<f`, `&>x`, `<<<s`)
-            # and VAR=value assignments may precede the command word; an
-            # operator standing alone takes the next word as its target.
-            # Bash decides both on the word as written, before quote
-            # removal: a quoted `">"x` or `"A=b"/x` is a command word. An
-            # assignment counts only before the first command word of the
-            # segment; behind a wrapper the word is what the wrapper runs.
-            if [[ "$_raw" =~ ^[0-9]*(\<|\>|\&\>) ]]; then
-                if [[ "$_raw" =~ ^[0-9]*(\<\<\<|\<\<|\<\>|\<\&|\>\>|\>\&|\>\||\&\>\>|\&\>|\<|\>)$ ]]; then
-                    _i=$(( _i + 2 ))
-                else
-                    _i=$(( _i + 1 ))
-                fi
-                continue
-            fi
+            # VAR=value assignments may precede the command word. Bash
+            # decides on the word as written, before quote removal: a quoted
+            # `"A=b"/x` is a command word. An assignment counts only before
+            # the first command word of the segment; behind a wrapper the
+            # word is what the wrapper runs.
             if ! $_wrapped && [[ "$_raw" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
                 _i=$(( _i + 1 ))
                 continue
