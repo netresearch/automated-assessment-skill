@@ -336,11 +336,13 @@ extract_process_substitutions() {
 WRAP_TOKENS=()
 wrapped_command_index() {
     local w="$1" i="$2" n=${#WRAP_TOKENS[@]} t name k ch
-    local vals="" bools="" optional="" lvals="" lbools="" positional=0 assign=0 numeric=0
+    local vals="" bools="" optional="" lvals="" lbools="" loptional="" positional=0 assign=0 numeric=0
     case "$w" in
         xargs)
             vals=adEILnPs bools=0prtxo optional=eil
-            lvals=" arg-file delimiter eof replace max-lines max-args max-procs max-chars process-slot-var "
+            lvals=" arg-file delimiter max-args max-procs max-chars process-slot-var "
+            # --eof[=END], --replace[=R], --max-lines[=N]: a value only after `=`.
+            loptional=" eof replace max-lines "
             lbools=" null interactive no-run-if-empty verbose exit open-tty " ;;
         env)
             vals=uC bools=i0v assign=1
@@ -367,11 +369,11 @@ wrapped_command_index() {
         elif [[ "$t" == --* ]]; then
             name="${t#--}"
             if [[ "$name" == *=* ]]; then
-                [[ "$lvals" == *" ${name%%=*} "* ]] || { echo "'$w' option '--${name%%=*}' is not one this allowlist can parse"; return 1; }
+                [[ "$lvals$loptional" == *" ${name%%=*} "* ]] || { echo "'$w' option '--${name%%=*}' is not one this allowlist can parse"; return 1; }
                 i=$(( i + 1 ))
             elif [[ "$lvals" == *" $name "* ]]; then
                 i=$(( i + 2 ))
-            elif [[ "$lbools" == *" $name "* ]]; then
+            elif [[ "$lbools$loptional" == *" $name "* ]]; then
                 i=$(( i + 1 ))
             else
                 echo "'$w' option '--$name' is not one this allowlist can parse"
@@ -699,7 +701,7 @@ is_safe_eval_command() {
     # with its own option grammar (wrapped_command_index), so the word it
     # runs is found behind `-n 1`, `-I {}` or a duration, and a wrapper or
     # an option outside that grammar is refused rather than guessed at.
-    local _seg _bare _cw _i _next _wrapped _known _acmd
+    local _seg _bare _raw _cw _i _next _wrapped _known _acmd
     local -a _segs _toks
     # Split the RAW pattern, not the backslash-stripped one: the quote
     # tracker needs the backslashes to recognise an escaped quote.
@@ -722,9 +724,11 @@ is_safe_eval_command() {
         _i=0
         while (( _i < ${#WRAP_TOKENS[@]} )); do
             _bare="${WRAP_TOKENS[_i]}"
+            _raw="${_toks[_i]}"
             # A subshell or group opener in front of the word hides it
             # from every test below: `| (gh repo delete ...)` runs gh.
             while [[ "${_bare:0:1}" == "(" || "${_bare:0:1}" == "{" ]]; do _bare=${_bare:1}; done
+            while [[ "${_raw:0:1}" == "(" || "${_raw:0:1}" == "{" ]]; do _raw=${_raw:1}; done
             if [[ -z "$_bare" ]]; then
                 _i=$(( _i + 1 ))
                 continue
@@ -732,15 +736,19 @@ is_safe_eval_command() {
             # Redirections (`>out`, `2>/dev/null`, `3<f`, `&>x`, `<<<s`)
             # and VAR=value assignments may precede the command word; an
             # operator standing alone takes the next word as its target.
-            if [[ "$_bare" =~ ^[0-9]*(\<|\>|\&\>) ]]; then
-                if [[ "$_bare" =~ ^[0-9]*(\<\<\<|\<\<|\<\>|\<\&|\>\>|\>\&|\>\||\&\>\>|\&\>|\<|\>)$ ]]; then
+            # Bash decides both on the word as written, before quote
+            # removal: a quoted `">"x` or `"A=b"/x` is a command word. An
+            # assignment counts only before the first command word of the
+            # segment; behind a wrapper the word is what the wrapper runs.
+            if [[ "$_raw" =~ ^[0-9]*(\<|\>|\&\>) ]]; then
+                if [[ "$_raw" =~ ^[0-9]*(\<\<\<|\<\<|\<\>|\<\&|\>\>|\>\&|\>\||\&\>\>|\&\>|\<|\>)$ ]]; then
                     _i=$(( _i + 2 ))
                 else
                     _i=$(( _i + 1 ))
                 fi
                 continue
             fi
-            if [[ "$_bare" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+            if ! $_wrapped && [[ "$_raw" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
                 _i=$(( _i + 1 ))
                 continue
             fi

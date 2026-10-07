@@ -259,6 +259,19 @@ verdict reject 'grep x f | xargs -I "a grep" gh repo delete o/r'
 verdict reject 'xargs -I "a grep" scripts/x'
 verdict accept 'grep -q "a b" f | wc -l'
 verdict accept "find . -name '*.yml' | xargs -I{} grep -q 'a b' {}"
+# xargs --eof, --replace and --max-lines take a value only after `=`.
+verdict reject 'find . -name x | xargs --eof scripts/x grep -q y'
+verdict reject 'find . -name x | xargs --replace scripts/x grep -q y'
+verdict reject 'find . -name x | xargs --max-lines scripts/x grep -q y'
+verdict accept 'find . -name x | xargs --eof=END grep -q y'
+verdict accept 'find . -name x | xargs --replace grep -q y'
+# Assignments and redirections are recognised on the word as written; an
+# assignment only before the segment's first command word.
+verdict reject 'grep -q x f | "A=b"/x'
+verdict reject 'find . -name x | xargs A=b/x'
+verdict reject 'grep -q x f | timeout 5 A=b/x'
+verdict reject "find . -name x | xargs '>'d/x"
+verdict accept 'grep -q x f | LC_ALL=C grep -q y'
 # Redirections in front of the command word, numbered and spaced included.
 verdict reject "grep -q x f | 3<f './evil'"
 verdict reject 'grep -q x f | 0<f scripts/evil'
