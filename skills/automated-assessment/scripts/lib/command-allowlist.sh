@@ -42,7 +42,7 @@
 # substitution. Each must be on the whitelist or under vendor/bin/. What the
 # parser cannot classify is refused: a wrapper or wrapper option outside
 # its grammar, `$'...'` quoting outside single quotes, `$"..."` quoting
-# and brace expansion outside quotes, an unclosed
+# and brace expansion outside quotes, a quote inside `${...}`, an unclosed
 # process substitution.
 #
 # KNOWN-OPEN, deliberately (all verified to execute; none is an accident
@@ -264,6 +264,30 @@ has_unclassifiable_construct() {
         fi
         (( insq )) && continue
         next="${s:i+1:1}"
+        # Inside `${...}` bash applies its own quoting rules, also within
+        # double quotes, which the quote tracking of this file does not
+        # follow; a quote or backtick in that body is refused.
+        if [[ "$c" == '$' && "$next" == '{' ]]; then
+            local j pdepth=1 pc
+            for (( j = i + 2; j < ${#s}; j++ )); do
+                pc="${s:j:1}"
+                if [[ "$pc" == "'" || "$pc" == '"' || "$pc" == '`' ]]; then
+                    echo "pattern quotes inside \${...}, which the checks cannot follow"
+                    return 0
+                elif [[ "$pc" == "$bs" ]]; then
+                    j=$(( j + 1 ))
+                elif [[ "$pc" == '{' ]]; then
+                    pdepth=$(( pdepth + 1 ))
+                elif [[ "$pc" == '}' ]]; then
+                    pdepth=$(( pdepth - 1 ))
+                    (( pdepth == 0 )) && break
+                fi
+            done
+            if (( pdepth != 0 )); then
+                echo "pattern has an unclosed \${...}"
+                return 0
+            fi
+        fi
         # `$'` counts inside double quotes too: there it is literal text,
         # except inside `${...}`, where `"${x:-$'\055r'}"` still yields `-r`.
         # `$"` inside double quotes is a `$` before the closing quote, the

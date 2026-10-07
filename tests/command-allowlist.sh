@@ -312,6 +312,10 @@ verdict reject "find . -name x \$'-exec' sh -c id {} +"
 verdict reject "find . -name x \"\${x:-\$'\\055exec'}\" sh -c id {} +"
 verdict accept "grep -q '\$'\"'\"'x' f"
 verdict accept 'grep -q "foo$" f'
+# Bash quotes inside ${...} by its own rules, also within double quotes.
+verdict reject "grep -q x f \"\${x:-'\"'}\" | wc -l"
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
+verdict accept 'grep -q "${HOME}/x" f'
 verdict accept "grep -rq 'echo \$\"x' ."
 # Brace expansion builds words after the checks have read the text.
 verdict reject 'xargs r{m,} -r dir'
