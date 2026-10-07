@@ -222,14 +222,18 @@ This repository follows the organisation-wide policies of `netresearch`:
 Checks that run on every pull request to `main`:
 
 - Skill Validation (`.github/workflows/lint.yml`, reusable `validate.yml` of `netresearch/skill-repo-skill`): skill structure and version parity, ShellCheck at severity `style`, actionlint, markdownlint, yamllint, JSON syntax and checkpoint schemas.
+- Eval Validation (`.github/workflows/eval-validate.yml`, reusable `eval-validate.yml` of `netresearch/skill-repo-skill`): the structure of the first `skills/*/evals/evals.json`, which is `skills/add-checkpoints/evals/evals.json` (at least ten evals). It does not run the prompts against a model.
 - CI (`.github/workflows/ci.yml`): shell syntax of the checkpoint runner, required fields of the template checkpoint file, SKILL.md body size.
 - Skill Tests (`.github/workflows/tests.yml`): runs every `tests/*.sh`.
 - Harness Verification (`.github/workflows/harness-verify.yml`): AGENTS.md presence, size and references.
+- Security (`.github/workflows/security.yml`): Betterleaks secret scanning, zizmor workflow analysis, dependency review, and `composer audit` with an Opengrep SAST scan (which findings fail the check is set by the [organisation rule](https://github.com/netresearch/.github/blob/main/SECURITY.md#static-analysis-sast)).
+- Template Drift (`.github/workflows/check-template-drift.yml`): the files managed by the `skill` template in `netresearch/.github` match it, except the ones listed in `.github/template.yaml`.
+- Labeler (`.github/workflows/labeler.yml`) and Auto-merge dependency PRs (`.github/workflows/auto-merge-deps.yml`, which acts only on Renovate and Dependabot pull requests).
 - CodeQL (GitHub default setup): analyses the GitHub Actions workflows.
 - SonarCloud Code Analysis, configured outside this repository.
 - DCO: every commit carries a `Signed-off-by` line.
 
-The repository installs no third-party packages at run time: `composer.json` requires only `netresearch/composer-agent-skill-plugin`, and `package.json` declares only a peer dependency. No dependency review, Composer Audit or secret-scanning workflow runs in this repository. Renovate (`renovate.json`) proposes updates for the hook revisions pinned in `.pre-commit-config.yaml`.
+The repository installs no third-party packages at run time: `composer.json` requires only `netresearch/composer-agent-skill-plugin`, and `package.json` declares only a peer dependency. Renovate (`renovate.json`) proposes updates for the hook revisions pinned in `.pre-commit-config.yaml`.
 
 What you can and cannot expect from this repository in terms of security, with its threat model and trust boundaries: [docs/SECURITY-ASSURANCE.md](docs/SECURITY-ASSURANCE.md).
 
