@@ -29,6 +29,107 @@
         "Reports NOT suitable with clear reasoning",
         "Does not generate checkpoints for unsuitable skills"
       ]
+    },
+    {
+      "id": 3,
+      "eval_name": "severity-from-keyword-strength",
+      "prompt": "While generating checkpoints for a skill, I found three rules in its SKILL.md: 'composer.json must declare a license', 'README should link the changelog', and 'consider adding a CODEOWNERS file'. Which severity does each checkpoint get?",
+      "expected_output": "Assigns error to the 'must' rule, warning to the 'should' rule and info to the 'consider' rule, citing the keyword strength.",
+      "files": [],
+      "assertions": [
+        "Assigns severity error to the 'must declare a license' rule",
+        "Assigns severity warning to the 'should link the changelog' rule",
+        "Assigns severity info to the 'consider adding a CODEOWNERS file' rule",
+        "Explains that error blocks a release while warning and info do not"
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "preconditions-from-skill-scope",
+      "prompt": "Generate the preconditions block for checkpoints of a skill that only applies to TYPO3 extensions, and for a second skill whose rules apply to any project.",
+      "expected_output": "Uses file_exists: ext_emconf.php as the precondition for the TYPO3 extension skill and no preconditions for the universal skill.",
+      "files": [],
+      "assertions": [
+        "Uses a file_exists precondition on ext_emconf.php for the TYPO3 extension skill",
+        "Leaves the universal skill without preconditions",
+        "Explains that a failing precondition skips the whole skill"
+      ]
+    },
+    {
+      "id": 5,
+      "eval_name": "flag-vendor-leakage",
+      "prompt": "Review this generated checkpoint before I commit it:\n\n- id: XX-01\n  type: command\n  command: \"find . -name '*.php' | xargs grep -l 'GeneralUtility::_GP'\"\n  severity: error\n  desc: \"No _GP() calls\"",
+      "expected_output": "Flags vendor leakage: the find has no exclusion for vendor/, node_modules/ or .Build/, so third-party code is checked. Proposes a version that excludes those directories.",
+      "files": [],
+      "assertions": [
+        "Identifies the missing vendor/ exclusion as the vendor-leakage defect class",
+        "Mentions node_modules/ and .Build/ as directories to exclude as well",
+        "States that the runner's auto-exclude covers only glob targets of content checks, not a command like this find",
+        "Proposes a corrected checkpoint that excludes those directories"
+      ]
+    },
+    {
+      "id": 6,
+      "eval_name": "flag-skill-relative-script",
+      "prompt": "A generated checkpoint reads `command: bash scripts/check-ext-emconf.sh`. The script exists in the skill's scripts/ directory. Is this checkpoint fine?",
+      "expected_output": "No: a checkpoint runs from the repository under test, where the skill's scripts/ does not exist, and the allowlist rejects path-prefixed commands. The logic must be inlined; the script stays the human entry point.",
+      "files": [],
+      "assertions": [
+        "Says the checkpoint runs from the repository under test, where the skill's scripts/ directory does not exist",
+        "Mentions that the runner's allowlist rejects a path-prefixed command",
+        "Recommends inlining the logic into the checkpoint, for example with php -r for non-trivial logic",
+        "Keeps the shipped script as the entry point for humans"
+      ]
+    },
+    {
+      "id": 7,
+      "eval_name": "flag-pipe-into-head-exit-trap",
+      "prompt": "Check this checkpoint command: `grep -rn 'var_dump(' Classes/ | head -1 && echo 'found var_dump' && exit 1 || exit 0`",
+      "expected_output": "Flags the pipe-into-head exit trap: head exits 0 even on empty input, so the checkpoint reports a failure on every project. The exit status has to come from the match itself (grep -q, or a regex_not check without a command).",
+      "files": [],
+      "assertions": [
+        "Explains that head exits 0 on empty input, so the command fails on every project",
+        "Names this as the pipe-into-head exit trap",
+        "Proposes letting the exit status come from the match, such as grep -q",
+        "Mentions regex_not without a command as an alternative"
+      ]
+    },
+    {
+      "id": 8,
+      "eval_name": "dry-run-writes-nothing",
+      "prompt": "/add-checkpoints --dry-run",
+      "expected_output": "Analyses the current skill and shows the checkpoints that would be generated, without writing checkpoints.yaml or the assets copy.",
+      "files": [],
+      "assertions": [
+        "Shows the checkpoint YAML it would generate",
+        "Does not write checkpoints.yaml or a copy in the assets directory",
+        "Reports the suitability decision and the reasoning"
+      ]
+    },
+    {
+      "id": 9,
+      "eval_name": "llm-review-only-when-no-command-decides",
+      "prompt": "For the requirement 'phpstan.neon must set level 9', I drafted an LLM review whose prompt starts with `grep -E 'level: ?9' phpstan.neon` and asks the reviewer to confirm. Is that the right kind of checkpoint?",
+      "expected_output": "No: a command can decide this, so it belongs in mechanical (a contains/regex or command check on phpstan.neon). LLM reviews are only for what no command can decide; if both halves are kept, the review carries a mechanical-counterpart comment naming the mechanical ID.",
+      "files": [],
+      "assertions": [
+        "Moves the check into the mechanical section, for example a regex or contains check on phpstan.neon",
+        "States that LLM reviews are only for what no command can decide",
+        "Mentions the '# mechanical-counterpart: <ID>' comment for keeping both halves"
+      ]
+    },
+    {
+      "id": 10,
+      "eval_name": "calibration-anchor-comments",
+      "prompt": "Generate one checkpoint for the rule 'every skill repo must ship LICENSE-MIT' and show the complete YAML entry.",
+      "expected_output": "Produces a file_exists checkpoint with severity error and YAML comments recording its predicted defect class and its retirement condition, because a checkpoint without that calibration anchor is capped at info.",
+      "files": [],
+      "assertions": [
+        "Uses a file_exists check for LICENSE-MIT",
+        "Assigns severity error for the 'must' rule",
+        "Adds YAML comments recording the predicted defect class and the retirement condition",
+        "Notes that without these comments the checkpoint is capped at severity info"
+      ]
     }
   ]
 }
