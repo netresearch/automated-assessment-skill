@@ -278,6 +278,12 @@ verdict reject 'find . -name x | xargs -I > grep grep scripts/x'
 verdict reject 'grep -q x f | timeout > grep 5 scripts/x'
 verdict reject 'grep -q x f | xargs -I 2>grep grep scripts/x'
 verdict accept 'grep -q x f | xargs -n 1 2>/dev/null grep -q y'
+# `<` and `>` end a word, so a redirection glued to an option is dropped too.
+verdict reject 'grep -q x f | xargs -I>/dev/null grep scripts/x'
+verdict reject 'grep -q x f | xargs -rI>/dev/null grep scripts/x'
+verdict reject 'grep -q x f | env -u>/dev/null grep scripts/x'
+verdict accept 'grep -q x f>/dev/null'
+verdict accept 'grep -q x f 2>&1 | wc -l'
 # Redirections in front of the command word, numbered and spaced included.
 verdict reject "grep -q x f | 3<f './evil'"
 verdict reject 'grep -q x f | 0<f scripts/evil'

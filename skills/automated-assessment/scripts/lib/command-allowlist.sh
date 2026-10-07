@@ -213,6 +213,15 @@ split_shell_words() {
             word=""
             inword=0
             continue
+        elif (( ! insq && ! indq )) && [[ "$c" == '<' || "$c" == '>' || ( "$c" == '&' && "${s:i+1:1}" == '>' ) ]]; then
+            # `<` and `>` end a word for bash, so a redirection glued to a
+            # word (`-I>/dev/null`) starts a word of its own. A word that is
+            # only an fd number or operator characters (`2`, `>`, `2>`) is
+            # the start of that same redirection and keeps it.
+            if (( inword )) && ! [[ "$word" =~ ^[0-9]*[\<\>\&]*$ ]]; then
+                printf '%s\0' "$word"
+                word=""
+            fi
         fi
         word+="$c"
         inword=1
