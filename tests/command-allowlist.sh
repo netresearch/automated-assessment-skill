@@ -316,6 +316,11 @@ verdict accept 'grep -q "foo$" f'
 verdict reject "grep -q x f \"\${x:-'\"'}\" | wc -l"
 # shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
 verdict accept 'grep -q "${HOME}/x" f'
+# Unquoted, a blank inside ${...} adds a word boundary after expansion.
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
+verdict reject 'grep -l x f | xargs -I ${x:- grep sh} -c id'
+# shellcheck disable=SC2016  # the literal $ is the test input; it must not expand
+verdict accept 'grep -q "${x:- a b}" f'
 verdict accept "grep -rq 'echo \$\"x' ."
 # Brace expansion builds words after the checks have read the text.
 verdict reject 'xargs r{m,} -r dir'

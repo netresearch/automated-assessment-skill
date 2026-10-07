@@ -42,7 +42,8 @@
 # substitution. Each must be on the whitelist or under vendor/bin/. What the
 # parser cannot classify is refused: a wrapper or wrapper option outside
 # its grammar, `$'...'` quoting outside single quotes, `$"..."` quoting
-# and brace expansion outside quotes, a quote inside `${...}`, an unclosed
+# and brace expansion outside quotes, a quote inside `${...}` or a blank
+# inside an unquoted one, an unclosed
 # process substitution.
 #
 # KNOWN-OPEN, deliberately (all verified to execute; none is an accident
@@ -58,6 +59,10 @@
 #     quotes but a text substitution does not know that.
 #   * Traversal spelled through an expansion: `.$1./evil` resolves to
 #     `../evil` with no literal `..` anywhere in the text.
+#   * Word splitting of an unquoted expansion's VALUE: `$x` whose value
+#     holds a blank becomes several words at run time, which can move the
+#     word a wrapper runs. The value is not in the text; a blank written
+#     inside an unquoted `${...}` is refused.
 #
 # Before changing a rule here, run tests/command-allowlist.sh AND score every
 # one-line command of the installed checkpoint files with the old and the new
@@ -273,6 +278,11 @@ has_unclassifiable_construct() {
                 pc="${s:j:1}"
                 if [[ "$pc" == "'" || "$pc" == '"' || "$pc" == '`' ]]; then
                     echo "pattern quotes inside \${...}, which the checks cannot follow"
+                    return 0
+                elif (( ! indq )) && [[ "$pc" == [[:space:]] ]]; then
+                    # Unquoted, the expansion is split into words after
+                    # parsing, so a blank in its text adds a word boundary.
+                    echo "pattern has a blank inside an unquoted \${...}, which splits into words the checks cannot see"
                     return 0
                 elif [[ "$pc" == "$bs" ]]; then
                     j=$(( j + 1 ))
