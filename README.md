@@ -229,7 +229,7 @@ Checks that run on every pull request to `main`:
 - Security (`.github/workflows/security.yml`): Betterleaks secret scanning, zizmor workflow analysis, dependency review, and `composer audit` with an Opengrep SAST scan (which findings fail the check is set by the [organisation rule](https://github.com/netresearch/.github/blob/main/SECURITY.md#static-analysis-sast)).
 - Template Drift (`.github/workflows/check-template-drift.yml`): the files managed by the `skill` template in `netresearch/.github` match it, except the ones listed in `.github/template.yaml`.
 - Labeler (`.github/workflows/labeler.yml`) and Auto-merge dependency PRs (`.github/workflows/auto-merge-deps.yml`, which acts only on Renovate and Dependabot pull requests).
-- CodeQL (GitHub default setup): analyses the GitHub Actions workflows.
+- CodeQL (the `codeql` job of `.github/workflows/security.yml`): analyses the GitHub Actions workflows.
 - SonarCloud Code Analysis, configured outside this repository.
 - DCO: every commit carries a `Signed-off-by` line.
 
