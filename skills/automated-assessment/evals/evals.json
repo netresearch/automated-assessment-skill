@@ -41,6 +41,215 @@
         "Does not run checkpoints from other skills",
         "Produces report scoped to the named skill"
       ]
+    },
+    {
+      "id": 4,
+      "eval_name": "completion-claim-must-match-evidence-contract",
+      "prompt": "Assess this completion claim: \"All 18 language routes passed; all linked media and heading typography are verified, so the sites are fully compliant.\" The cited artifact is revision-bound and declares aggregate_success=true. Expected route identities: [\"portfolio_en\", \"portfolio_de\", \"stack_en\", \"stack_de\", \"impact_en\", \"impact_de\", \"browser_en\", \"browser_de\", \"mcp_en\", \"mcp_de\", \"llm_en\", \"llm_de\", \"browser_manual_en\", \"browser_manual_de\", \"mcp_manual_en\", \"mcp_manual_de\", \"llm_manual_en\", \"llm_manual_de\"]. Artifact rows (all report HTTP 200): [\"portfolio_en\", \"portfolio_de\", \"stack_en\", \"stack_de\", \"impact_en\", \"impact_de\", \"browser_en\", \"browser_de\", \"mcp_en\", \"mcp_de\", \"llm_en\", \"llm_de\", \"browser_manual_en\", \"browser_manual_de\", \"mcp_manual_en\", \"mcp_manual_de\", \"llm_manual_en\", \"llm_manual_en\"]. Additional witnesses: browser_de final language=en; the social image request reports Content-Type:text/html; Raleway is loaded but computed heading font-family is Arial. Decide whether the completion claim is substantiated, identify the concrete missing/contradictory evidence and state the permissible scope. Do not fix the sites.",
+      "expected_output": "Rejects the complete 18-route/semantic/compliance claim using the explicit manifest and per-target contradictions, distinguishes18 rows from17 unique targets and limits any accepted statement to actual evidence.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:digit:]])(17|seventeen)[[:space:]*_]*(unique|distinct)",
+          "description": "Counts unique identities rather than accepting18 rows"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(llm_manual_de)([^[:alnum:]_]|$)",
+          "description": "Names the missing target rather than only comparing totals"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(browser_de|German|DE)([^[:alnum:]_]|[^[:alnum:]_].{0,100}[^[:alnum:]_])(English|EN)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(English|EN)([^[:alnum:]_]|[^[:alnum:]_].{0,100}[^[:alnum:]_])(browser_de|German|DE)([^[:alnum:]_]|$)",
+          "description": "Identifies the language witness contradicting the German route"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(social|image|media)([^[:alnum:]_]|[^[:alnum:]_].{0,100}[^[:alnum:]_])(HTML)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(HTML)([^[:alnum:]_]|[^[:alnum:]_].{0,100}[^[:alnum:]_])(social|image|media)([^[:alnum:]_]|$)",
+          "description": "Does not treat 200 as image-type evidence"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(computed|assigned|heading).{0,100}(font|Arial)",
+          "description": "Checks assignment rather than font download alone"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(reject|unsubstantiated|not substantiated|cannot.{0,40}(close|certif|compliant))",
+          "description": "Rejects the broader completion claim"
+        }
+      ],
+      "samples": {
+        "passing": "Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.",
+        "failing": [
+          "All 18routes passed because 18 rows report200and aggregate_success=true. The image is accessible and Raleway is loaded, so all sites are fully compliant.",
+          "Reject the missing llm_manual_de route:18 rows contain 17 unique targets. All other checks are proven by 200 responses and loaded font files."
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "eval_name": "equal-counts-do-not-prove-target-identity",
+      "prompt": "Claim: all three expected targets a,b,c passed at revision R2. Artifact is current for R2 and contains three successful unique targets a,b,d, with correct individual resource witnesses. Compare the identity sets. Return DECISION=ACCEPT or DECISION=REJECT and name the missing/unexpected target.",
+      "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*REJECT",
+          "description": "Rejects equal-count identity substitution"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(missing|absent)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(c)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(c)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(missing|absent)([^[:alnum:]_]|$)",
+          "description": "Names the missing identity"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(unexpected|extra)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(d)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(d)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(unexpected|extra)([^[:alnum:]_]|$)",
+          "description": "Names the substituted identity"
+        }
+      ],
+      "samples": {
+        "passing": "DECISION=REJECT. Missing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.",
+        "failing": [
+          "DECISION=ACCEPT. Three unique successful rows match the expected count, so all targets passed.",
+          "DECISION=REJECT. Missing concrete evidence; unexpected data.",
+          "DECISION=REJECT. Missing concrete evidence; unexpected target d.",
+          "DECISION=REJECT. Missing target c; unexpected data."
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "eval_name": "artifact-revision-must-match-completion-claim",
+      "prompt": "Claim: targets a,b passed on revision R2. The only cited artifact is revision R1, with exact target identities and valid successful per-target witnesses. No R2 result exists. Return DECISION=ACCEPT or DECISION=REJECT, describe the revision problem and the missing witness.",
+      "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*REJECT",
+          "description": "Rejects a stale revision witness"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(R1)([^[:alnum:]_]|[^[:alnum:]_].{0,100}[^[:alnum:]_])(R2)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(R2)([^[:alnum:]_]|[^[:alnum:]_].{0,100}[^[:alnum:]_])(R1)([^[:alnum:]_]|$)",
+          "description": "Distinguishes the concrete revisions"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "stale|revision|current",
+          "description": "Explains evidence binding"
+        }
+      ],
+      "samples": {
+        "passing": "DECISION=REJECT. The artifact is for R1, but the claim is for R2. Obtain current revision-bound per-target results before accepting the claim.",
+        "failing": [
+          "DECISION=ACCEPT. The target identities and successful results are complete, so the R2 claim is proven."
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "eval_name": "aggregate-success-cannot-override-target-failure",
+      "prompt": "Claim: a,b passed on current revision R2. Artifact matches R2 and the expected identity set. Its aggregate_success is true, but row b explicitly records status=failed; row a passes. Return DECISION=ACCEPT or DECISION=REJECT and identify the decisive witness.",
+      "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*REJECT",
+          "description": "Does not trust an aggregate over contradictory rows"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(b)([^[:alnum:]_]|[^[:alnum:]_].{0,60}[^[:alnum:]_])(fail|failed|failure)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(fail|failed|failure)([^[:alnum:]_]|[^[:alnum:]_].{0,60}[^[:alnum:]_])(b)([^[:alnum:]_]|$)",
+          "description": "Names the failed target"
+        }
+      ],
+      "samples": {
+        "passing": "DECISION=REJECT. Target b failed; the aggregate success flag cannot override this per-target failure.",
+        "failing": [
+          "DECISION=ACCEPT. The current artifact includes every expected target and its aggregate_success flag is true.",
+          "DECISION=REJECT. Target a failed because its result is bad."
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "eval_name": "http-success-does-not-establish-resource-semantics",
+      "prompt": "Claim: the German route and social image are verified. Current artifact has both expected identities and HTTP200. The domain checker records final language=en for the German route and Content-Type:text/html for the image. Return DECISION=ACCEPT or DECISION=REJECT and identify both contradictory witnesses. Do not implement a domain checker.",
+      "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*REJECT",
+          "description": "Rejects status-only semantic evidence"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(German)([^[:alnum:]_]|[^[:alnum:]_].{0,90}[^[:alnum:]_])(en|English)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(en|English)([^[:alnum:]_]|[^[:alnum:]_].{0,90}[^[:alnum:]_])(German)([^[:alnum:]_]|$)",
+          "description": "Identifies the wrong locale witness"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(^|[^[:alnum:]_])(image)([^[:alnum:]_]|[^[:alnum:]_].{0,90}[^[:alnum:]_])(html)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(html)([^[:alnum:]_]|[^[:alnum:]_].{0,90}[^[:alnum:]_])(image)([^[:alnum:]_]|$)",
+          "description": "Identifies the wrong resource-type witness"
+        }
+      ],
+      "samples": {
+        "passing": "DECISION=REJECT. The German route resolves to English and the image returns text/html. HTTP200 does not establish either intended locale or resource type.",
+        "failing": [
+          "DECISION=ACCEPT. Both expected resources are present at the current revision and return HTTP200.",
+          "DECISION=REJECT. The German route is correct; the image has content-type text/html."
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "eval_name": "loaded-font-does-not-prove-heading-assignment",
+      "prompt": "Claim: heading typography uses Raleway. The current domain report records Raleway font download=success and computed heading font-family=Arial. Return DECISION=ACCEPT or DECISION=REJECT and explain which witness establishes assignment. Do not change CSS.",
+      "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*REJECT",
+          "description": "Rejects a download as assignment proof"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "computed.{0,60}Arial|Arial.{0,60}computed",
+          "description": "Uses the actual heading assignment"
+        }
+      ],
+      "samples": {
+        "passing": "DECISION=REJECT. The computed heading font is Arial; a successful Raleway download does not establish its assignment to that heading.",
+        "failing": [
+          "DECISION=ACCEPT. Raleway loaded successfully, proving the heading typography."
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "eval_name": "complete-scoped-evidence-can-pass",
+      "prompt": "Claim: the measured header contrast passed for routes a,b at revision R2 in light and dark at320px and1440px. The artifact matches R2 and the exact unique target/locale/theme/viewport manifest, contains a valid passing contrast witness for every expected case and no contradictory row. Return DECISION=ACCEPT_SCOPED or DECISION=REJECT. State whether these results establish whole-page WCAG certification.",
+      "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*ACCEPT_SCOPED",
+          "description": "Accepts complete evidence for its actual scope"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "no.{0,60}(whole.page|WCAG|certif)|not.{0,60}(whole.page|WCAG|certif)",
+          "description": "Preserves the limit of the positive result"
+        }
+      ],
+      "samples": {
+        "passing": "DECISION=ACCEPT_SCOPED. The revision, identity set and valid per-case witnesses substantiate measured header contrast. No whole-page WCAG certification follows from this scope.",
+        "failing": [
+          "DECISION=REJECT. No automated or focused test evidence can ever substantiate a positive claim."
+        ]
+      }
     }
   ]
 }
