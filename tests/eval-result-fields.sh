@@ -115,6 +115,24 @@ for id in 4 5 10; do
     done <<<"$passing"
 done
 
+# Eval 16 classifies evidence already supplied in the prompt. It must reject
+# global denials of that evidence without requiring a personal rerun, and it
+# must keep F3's unavailable history distinct from F1's verified reproduction.
+passing=$(jq -r '.evals[] | select(.id == 16) | .samples.passing' "$EVALS")
+expect pass 16 'supplied historical evidence' "$passing"
+while IFS= read -r sample; do
+    expect fail 16 'historical evidence counterexample' "$(jq -r . <<<"$sample")"
+done < <(jq -c '.evals[] | select(.id == 16) | .samples.failing[]' "$EVALS")
+fields=$'F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1'
+expect pass 16 'no personal rerun required' "$fields"$'\nI did not rerun the supplied independent reproduction myself. Its given h1 evidence establishes F1, and the supplied comparison excludes F2.'
+expect pass 16 'F3 evidence remains unavailable' "$fields"$'\nF1 relies on the supplied independent reproduction. F3 h1 evidence was never checked because it is unavailable; keep F3 unverified.'
+expect pass 16 'F3 evidence disclaimer suffix' "$fields"$'\nF1 relies on the supplied independent reproduction. The h1 evidence was never checked for F3. The revisions were not compared for F3 because its h1 evidence is unavailable.'
+expect pass 16 'personal evidence disclaimer suffix' "$fields"$'\nThe h1 evidence was not checked by me. The supplied independent reproduction establishes F1; I need not rerun it.'
+expect fail 16 'checked disclaimer' "$fields"$'\nThe h1 evidence was not checked.'
+expect fail 16 'verified disclaimer' "$fields"$'\nH1 evidence has never been verified.'
+expect fail 16 'comparison disclaimer' "$fields"$'\nThe revisions have not been compared.'
+expect fail 16 'original review counterexample' "$fields"$'\nThe revisions were not compared, and h1 evidence was never checked.'
+
 # These actual review counterexamples passed every assertion before the repair.
 expect fail 4 'download substituted for computed assignment' 'Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the heading font is Raleway because it downloaded successfully. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.'
 expect fail 5 'negated identity witnesses' 'DECISION=REJECT. Target c is not missing; target d is not unexpected.'

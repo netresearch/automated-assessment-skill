@@ -489,13 +489,23 @@
         {
           "type": "content_regex",
           "pattern": "^MISSED=1$"
+        },
+        {
+          "type": "must_not",
+          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?(supplied[[:space:]]+)?h1 evidence[[:space:]]+((was|is)[[:space:]]+(not|never)|has[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+(verified|checked)([[:space:]]+for[[:space:]]+F1)?[[:space:]]*([,.;!?]|$)"
+        },
+        {
+          "type": "must_not",
+          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?revisions[[:space:]]+((were|are)[[:space:]]+(not|never)|have[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+compared([[:space:]]+for[[:space:]]+F1)?[[:space:]]*([,.;!?]|$)"
         }
       ],
       "samples": {
         "passing": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists.",
         "failing": [
           "F1=missed\nF2=missed\nF3=missed\nMISSED=3\nAll three affect the reviewed module, so every later-discovered defect was missed.",
-          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=2\nCount F3 as missed anyway because an earlier clean review should have caught it."
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=2\nCount F3 as missed anyway because an earlier clean review should have caught it.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe h1 evidence was never checked; count F1 anyway because it was found later in the same module.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe revisions were not compared; the labels are guesses based on discovery time."
         ]
       },
       "expected_output": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists."
