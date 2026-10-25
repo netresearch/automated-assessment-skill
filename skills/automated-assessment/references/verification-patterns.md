@@ -105,6 +105,33 @@ Rubric body (loaded by the LLM checkpoint):
 >
 > Record each failure with: location (file:line or PR comment URL), the unsubstantiated claim verbatim, and what would have satisfied the check (e.g. "link to `phpunit` output").
 
+## Keep evidence levels separate
+
+- **Structure:** a validator accepted files, declarations or schema. This does not
+  establish that a model selected a skill, ran a command or produced correct work.
+- **Static review:** the reviewer followed a reachable code path and checked the
+  relevant contract and counterevidence. Record the revision and scope; do not
+  describe this as a runtime test.
+- **Execution:** a trace or independently readable artifact shows the actual
+  command, environment, exit status and result. A sentence naming a tool is not
+  evidence that it ran. Check the outcome, not just the expected words in a log.
+
+For a claim of skill benefit, compare matched old/new runs with the same actor,
+model settings, tools, permissions and fixtures in fresh sessions. Add a no-skill
+condition for a capability claim; test team-preference compliance separately.
+Record skill selection and actual tool use separately from outcome correctness.
+Failed startup, denied access, missing dependencies and timeout are execution
+limitations, never correct non-invocation examples. Keep them in the result and
+out of the count of valid negative trials. No model run means no measured skill
+benefit; proposed fixtures and passing schema checks are not such a run.
+
+A claim holds for its checked revision and environment only. Reuse it when that
+object and the asserted property are unchanged; recheck affected paths after a
+new commit, base change or altered deployment environment. A completed automated
+review or a resolved comment thread is not evidence of test execution, enforced
+branch protection, or a human's approval of a later commit. Verify those controls
+separately when they are within the requested scope.
+
 ## When to adopt these
 
 - **All skill/plugin repos**: Pattern 3 (guards releases)

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: CC-BY-SA-4.0
 # SPDX-FileCopyrightText: Netresearch DTT GmbH
 name: automated-assessment
-description: "Use when working with ANY project compliance assessment, quality enhancement, or test suite improvement. MUST be triggered BEFORE manual quality work begins (e.g., to enhance tests, improve coverage, increase mutation score, or strengthen test suite). Also use for: running quality audits against checkpoint-enabled skills, verifying release readiness, mechanical checks, or LLM-assisted code reviews."
+description: "Use when assessing project compliance against checkpoint-enabled skills, running /assess, triaging assessment results, or planning measurable improvements to coverage, mutation testing, or quality gates. Also use for checkpoint-backed release-readiness checks. A standalone code review or a small prose edit does not by itself require a project-wide assessment."
 license: "(MIT AND CC-BY-SA-4.0). See LICENSE-MIT and LICENSE-CC-BY-SA-4.0"
 compatibility: "Requires bash, jq, gh CLI."
 metadata:
@@ -47,14 +47,23 @@ Systematic compliance assessment against checkpoint-enabled skills.
 
 ### Steps
 
-1. Discover skills, evaluate preconditions
-2. Run mechanical checkpoints
-3. Group LLM checkpoints by domain, spawn parallel agents
-4. Collect results, generate report
+1. Record the target revision, environment and expected scope; discover matching checkpoints
+2. Run mechanical checkpoints, preserving execution failures separately from project defects
+3. Group only the needed LLM checks by domain; validate candidate findings independently
+4. Report confirmed findings, unresolved checks and coverage separately
+
+For LLM review, use the candidate/validation contract in `references/checkpoint-workflow.md`.
+Give validators raw evidence and relevant repository access, without the author's conclusion.
+Choose parallel specialists only for independent risks; reuse evidence for an unchanged
+revision and property rather than opening another loop per skill. Share the task's review
+budget, with at most three repair/review rounds before an explicit unresolved result.
 
 ## Assessment-First Rule
 
-**CRITICAL**: Run `/assess` BEFORE manual quality work (enhance tests, improve coverage, strengthen suite, upgrade PHPStan, etc.). Assessment generates a structured gap analysis, preventing wasted iterative discovery.
+Run the applicable assessment before a project-wide quality enhancement (coverage,
+mutation testing, quality gates or static-analysis level). Its gap report becomes the
+task list. Keep a small, already scoped change focused; do not manufacture an unrelated
+assessment or substitute a near-miss skill when no checkpoints cover the request.
 
 ### Workflow
 1. `/assess` with relevant skills
@@ -121,7 +130,9 @@ runner refused the command and the check never ran.
 
 ## Pre-Push Gate
 
-Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-01 (PHPStan), PP-02 (PHPUnit), PP-03 (PHP-CS-Fixer), PP-04 (Rector).
+Only installed tools (`vendor/bin/*`) are checked. A missing executable is skipped,
+not passed; a clean exit with skipped tools does not establish complete verification.
+IDs: PP-01 (PHPStan), PP-02 (PHPUnit), PP-03 (PHP-CS-Fixer), PP-04 (Rector).
 
 ## Severity
 
@@ -132,6 +143,14 @@ Only installed tools (`vendor/bin/*`) are checked. Missing tools pass. IDs: PP-0
 `pass` `fail` `skip` `blocked` — counted separately (`total == pass + fail + skip + blocked`). A command whose executable does not exist (`vendor/bin/*` without Composer, a tool not on PATH) is `skip` with evidence `executable not found: <word>`, not a finding.
 
 **Never report a `blocked` checkpoint as a finding.** It means the runner refused the command through its allowlist, so nothing was measured: the defect is in the checkpoint file, not in the assessed project. Report blocked checkpoints as broken checks, run `scripts/validate-checkpoints.sh <file>` against the owning skill, and file them there. A refused precondition is the same thing one level up — the JSON reason says `REFUSED by the runner allowlist`, which is not the same as "this skill does not apply". See `references/checkpoints-schema.md` → "Outcomes".
+
+Zero confirmed findings is valid only with its measured scope. Missing tools or resources,
+timeouts, unavailable evidence and interrupted reviews leave that scope incomplete; they
+are neither a successful negative test nor proof of a project defect. Preserve the
+runner's four statuses and record the execution cause in the assessment report. Static
+review is not test execution, and a report does not itself enforce a merge gate or count
+as human approval. See `references/verification-patterns.md` for evidence levels and
+`references/calibration.md` for finding dispositions and later missed defects.
 
 ## References
 

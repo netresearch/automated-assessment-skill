@@ -21,6 +21,7 @@ The **automated-assessment** skill provides systematic project compliance assess
 | `skills/automated-assessment/references/migration-guide.md` | Adding checkpoints to new skills |
 | `skills/automated-assessment/references/dependency-compatibility.md` | Multi-version dependency assessment workflow |
 | `skills/automated-assessment/references/checkpoint-coverage-requirements.md` | Minimum checkpoint coverage per skill domain |
+| `skills/automated-assessment/evals/` | Text regressions and labelled selection queries; structure checks do not prove model behavior |
 | `.claude-plugin/plugin.json` | Plugin metadata (version, skills path) |
 
 ## Architecture

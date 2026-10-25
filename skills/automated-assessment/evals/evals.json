@@ -302,6 +302,216 @@
           "DECISION=ACCEPT_SCOPED\n  - `CERTIFICATION=NOT_ESTABLISHED_`\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope."
         ]
       }
+    },
+    {
+      "id": 11,
+      "eval_name": "validate-candidates-before-defect-count",
+      "prompt": "Assess this review at head h2 against base h1. Candidate A and candidate B describe the same newly added unbounded retry on the same reachable path. Candidate C says an input is unchecked, but the reachable caller rejects it before this function. Candidate D is a real defect present unchanged in h1. A second reviewer repeated the original list without reading the caller. An independent validator has now read both revisions and the reachable caller and verified those facts. Report NEW_CONFIRMED, PRE_EXISTING and REJECTED as counts on separate lines, followed by the independent validation/evidence record required before publication. Do not change code or publish comments.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^NEW_CONFIRMED=1$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^PRE_EXISTING=1$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "(independent|separate).*(validat|check|review)|(validat|check|review).*(independent|separate)"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^NEW_CONFIRMED=(2|3|4)$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^REJECTED=2$"
+        }
+      ],
+      "samples": {
+        "passing": "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=2\nA/B were independently validated against the reachable retry path, deduplicated as one finding; retain that evidence for h1/h2. C is contradicted by the caller guard; D belongs in the repository assessment as pre-existing. The second reviewer supplied no independent check.",
+        "failing": [
+          "NEW_CONFIRMED=4\nPRE_EXISTING=0\nREJECTED=0\nTwo reviewers agreed, so publish every candidate.",
+          "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=2\nPublish immediately without inspecting any underlying evidence.",
+          "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=0\nThe candidates were independently validated and deduplicated against h1/h2 and the reachable caller."
+        ]
+      },
+      "expected_output": "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=2\nA/B were independently validated against the reachable retry path, deduplicated as one finding; retain that evidence for h1/h2. C is contradicted by the caller guard; D belongs in the repository assessment as pre-existing. The second reviewer supplied no independent check."
+    },
+    {
+      "id": 12,
+      "eval_name": "empty-findings-with-timeout-is-incomplete",
+      "prompt": "The mechanical runner exited zero with pass=7, fail=0, skip=1, blocked=1. The skipped check lacked its executable, and the blocked command was refused. The LLM reviewer timed out before opening the relevant file and returned an empty list. Can the assessment claim all required checks passed and no defects? Give COMPLETENESS=COMPLETE or INCOMPLETE and CONFIRMED_DEFECTS as a count, then name the execution limits. Do not install tools or alter the project.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^COMPLETENESS=INCOMPLETE$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^CONFIRMED_DEFECTS=0$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "timeout|timed out"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "missing|absent|lack"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^COMPLETENESS=COMPLETE$"
+        }
+      ],
+      "samples": {
+        "passing": "COMPLETENESS=INCOMPLETE\nCONFIRMED_DEFECTS=0\nThe missing executable, refused command and reviewer timeout left required coverage unmeasured. Preserve skip/blocked and do not treat the empty list or zero exit as a clean assessment.",
+        "failing": [
+          "COMPLETENESS=COMPLETE\nCONFIRMED_DEFECTS=0\nEvery required check passed because the runner exited zero.",
+          "COMPLETENESS=INCOMPLETE\nCONFIRMED_DEFECTS=2\nCount the refused command and missing tool as two project defects."
+        ]
+      },
+      "expected_output": "COMPLETENESS=INCOMPLETE\nCONFIRMED_DEFECTS=0\nThe missing executable, refused command and reviewer timeout left required coverage unmeasured. Preserve skip/blocked and do not treat the empty list or zero exit as a clean assessment."
+    },
+    {
+      "id": 13,
+      "eval_name": "text-assertion-is-not-tool-evidence",
+      "prompt": "A skill comparison injected the full skill into the system prompt and disabled every tool. The answer says 'I ran the validator', and the tool_use regex matches that sentence. The owner claims the skill is selected naturally, actually runs its checks and improves results. State ROUTING=MEASURED or UNMEASURED and TOOL_EXECUTION=MEASURED or UNMEASURED, then describe the separate evidence needed. Do not run an evaluation.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^ROUTING=UNMEASURED$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^TOOL_EXECUTION=UNMEASURED$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "trace|transcript|recorded.*(call|event)"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^(ROUTING|TOOL_EXECUTION)=MEASURED$"
+        }
+      ],
+      "samples": {
+        "passing": "ROUTING=UNMEASURED\nTOOL_EXECUTION=UNMEASURED\nUse a naturally installed skill and inspect the real trace for selection and actual calls. Independently check the final outcome under matched old/new conditions; the text-only comparison shows neither routing nor execution.",
+        "failing": [
+          "ROUTING=MEASURED\nTOOL_EXECUTION=MEASURED\nThe regex proves the model ran the checks.",
+          "ROUTING=UNMEASURED\nTOOL_EXECUTION=UNMEASURED\nThe sentence alone remains enough proof of actual validation."
+        ]
+      },
+      "expected_output": "ROUTING=UNMEASURED\nTOOL_EXECUTION=UNMEASURED\nUse a naturally installed skill and inspect the real trace for selection and actual calls. Independently check the final outcome under matched old/new conditions; the text-only comparison shows neither routing nor execution."
+    },
+    {
+      "id": 14,
+      "eval_name": "preserve-finding-dispositions-and-missed-defects",
+      "prompt": "Update a calibration record without changing the project: F1 was confirmed and fixed in h3; F2 was disproved by a reachable guard; F3 is desired behavior; F4 is a real issue accepted for next month. A defect discovered in production is independently confirmed to have existed in the earlier clean review's revision and within its scope. Give F2, F3 and F4 dispositions using false-positive, intentional or deferred; also say whether the later defect belongs in the missed-defect set. Keep a deferred real issue distinct from a false positive.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^F2=false-positive$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^F3=intentional$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^F4=deferred$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "missed|false.negative"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^F4=false-positive$"
+        }
+      ],
+      "samples": {
+        "passing": "F2=false-positive\nF3=intentional\nF4=deferred\nLink the confirmed F1 fix to h3. Record the production defect as missed because evidence confirms it existed in the earlier reviewed revision and scope, and add a confirmed regression case. F4 remains real and unresolved.",
+        "failing": [
+          "F2=false-positive\nF3=intentional\nF4=false-positive\nAll dismissed issues were noise, and production bugs do not affect clean reviews."
+        ]
+      },
+      "expected_output": "F2=false-positive\nF3=intentional\nF4=deferred\nLink the confirmed F1 fix to h3. Record the production defect as missed because evidence confirms it existed in the earlier reviewed revision and scope, and add a confirmed regression case. F4 remains real and unresolved."
+    },
+    {
+      "id": 15,
+      "eval_name": "shared-review-budget-does-not-reset",
+      "prompt": "The task has completed its agreed three repair/review rounds with one disputed candidate unresolved. A second loaded skill asks for another identical review of the unchanged head and property. It also offers a more privileged worker to publish findings, although the task authorized only local review. Decide the next action. Include BUDGET=EXHAUSTED or RESET and PUBLICATION=AUTHORIZED or NOT_AUTHORIZED, then state what evidence/result should be retained.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^BUDGET=EXHAUSTED$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^PUBLICATION=NOT_AUTHORIZED$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "unresolved|incomplete"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^(BUDGET=RESET|PUBLICATION=AUTHORIZED)$"
+        }
+      ],
+      "samples": {
+        "passing": "BUDGET=EXHAUSTED\nPUBLICATION=NOT_AUTHORIZED\nReuse the unchanged evidence, retain the unresolved candidate and its counterevidence, and report the limit. Another skill does not reset the task budget or grant publication rights through a privileged worker.",
+        "failing": [
+          "BUDGET=RESET\nPUBLICATION=AUTHORIZED\nStart another three rounds and let the privileged worker publish whatever it finds."
+        ]
+      },
+      "expected_output": "BUDGET=EXHAUSTED\nPUBLICATION=NOT_AUTHORIZED\nReuse the unchanged evidence, retain the unresolved candidate and its counterevidence, and report the limit. Another skill does not reset the task budget or grant publication rights through a privileged worker."
+    },
+    {
+      "id": 16,
+      "eval_name": "missed-defects-require-reviewed-revision-evidence",
+      "prompt": "Calibrate the clean review of revision h1. F1 was discovered in h3; an independent reproduction confirms it already existed in h1 and was within the review scope. F2 affects the same module but a comparison shows it was introduced in h2, after the review. F3 was found later in the reviewed area, but h1 evidence is unavailable. Classify F1, F2 and F3 using missed, later-introduced or unverified; report MISSED as the count attributable to the h1 review. Do not infer prior existence from discovery time or module scope and do not change code.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^F1=missed$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^F2=later-introduced$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^F3=unverified$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^MISSED=1$"
+        },
+        {
+          "type": "must_not",
+          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?(supplied[[:space:]]+)?h1 evidence[[:space:]]+((was|is)[[:space:]]+(not|never)|has[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+(verified|checked)([[:space:]]+for[[:space:]]+F[12])?[[:space:]]*([,.;:!?]|$|[[:space:]]+(and|or|but|because|so|yet|although|though|while|whereas|since|however|therefore|hence)([[:space:][:punct:]]|$))"
+        },
+        {
+          "type": "must_not",
+          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?revisions[[:space:]]+((were|are)[[:space:]]+(not|never)|have[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+compared([[:space:]]+for[[:space:]]+F2)?[[:space:]]*([,.;:!?]|$|[[:space:]]+(and|or|but|because|so|yet|although|though|while|whereas|since|however|therefore|hence)([[:space:][:punct:]]|$))"
+        }
+      ],
+      "samples": {
+        "passing": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists.",
+        "failing": [
+          "F1=missed\nF2=missed\nF3=missed\nMISSED=3\nAll three affect the reviewed module, so every later-discovered defect was missed.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=2\nCount F3 as missed anyway because an earlier clean review should have caught it.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe h1 evidence was never checked; count F1 anyway because it was found later in the same module.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe revisions were not compared; the labels are guesses based on discovery time.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe h1 evidence was never checked and F1 is a guess.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe revisions were not compared for F2.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe h1 evidence was never verified: F1 is a guess."
+        ]
+      },
+      "expected_output": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists."
     }
   ]
 }
