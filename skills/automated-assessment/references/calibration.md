@@ -40,9 +40,13 @@ Close each candidate with a reason: `confirmed`, `false-positive`, `intentional`
 (the behavior is desired), or `deferred` (a real issue accepted for later work).
 An unexplained dismissal is not a false positive, and a deferred defect is not a
 successful fix. Preserve old/new revision links when a repair resolves a finding.
-Record defects found after a clean review as missed defects against that review's
-scope, including which check should have found them. Do not blame a PR for an
-older defect; repository-wide assessments can still report that existing defect.
+Count a defect discovered after a clean review as missed only when evidence
+shows it was present in the reviewed revision and within that review's scope.
+Retain that revision evidence and name the check that should have found it.
+Exclude defects introduced by later changes; if earlier presence cannot be
+established, leave the calibration attribution unverified rather than counting
+a false negative. Do not blame a PR for an older defect; repository-wide
+assessments can still report that existing defect.
 
 Use confirmed historical failures and independently verified clean examples in
 regression evaluations. Measure known-defect recall, false positives and harmful

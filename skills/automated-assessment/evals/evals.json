@@ -323,13 +323,18 @@
         {
           "type": "must_not",
           "pattern": "^NEW_CONFIRMED=(2|3|4)$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^REJECTED=2$"
         }
       ],
       "samples": {
         "passing": "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=2\nA/B were independently validated against the reachable retry path, deduplicated as one finding; retain that evidence for h1/h2. C is contradicted by the caller guard; D belongs in the repository assessment as pre-existing. The second reviewer supplied no independent check.",
         "failing": [
           "NEW_CONFIRMED=4\nPRE_EXISTING=0\nREJECTED=0\nTwo reviewers agreed, so publish every candidate.",
-          "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=2\nPublish immediately without inspecting any underlying evidence."
+          "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=2\nPublish immediately without inspecting any underlying evidence.",
+          "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=0\nThe candidates were independently validated and deduplicated against h1/h2 and the reachable caller."
         ]
       },
       "expected_output": "NEW_CONFIRMED=1\nPRE_EXISTING=1\nREJECTED=2\nA/B were independently validated against the reachable retry path, deduplicated as one finding; retain that evidence for h1/h2. C is contradicted by the caller guard; D belongs in the repository assessment as pre-existing. The second reviewer supplied no independent check."
@@ -403,7 +408,7 @@
     {
       "id": 14,
       "eval_name": "preserve-finding-dispositions-and-missed-defects",
-      "prompt": "Update a calibration record without changing the project: F1 was confirmed and fixed in h3; F2 was disproved by a reachable guard; F3 is desired behavior; F4 is a real issue accepted for next month. A defect discovered in production was within an earlier clean review's scope. Give F2, F3 and F4 dispositions using false-positive, intentional or deferred; also say whether the later defect belongs in the missed-defect set. Keep a deferred real issue distinct from a false positive.",
+      "prompt": "Update a calibration record without changing the project: F1 was confirmed and fixed in h3; F2 was disproved by a reachable guard; F3 is desired behavior; F4 is a real issue accepted for next month. A defect discovered in production is independently confirmed to have existed in the earlier clean review's revision and within its scope. Give F2, F3 and F4 dispositions using false-positive, intentional or deferred; also say whether the later defect belongs in the missed-defect set. Keep a deferred real issue distinct from a false positive.",
       "assertions": [
         {
           "type": "content_regex",
@@ -427,12 +432,12 @@
         }
       ],
       "samples": {
-        "passing": "F2=false-positive\nF3=intentional\nF4=deferred\nLink the confirmed F1 fix to h3. Record the production defect as a missed defect against the earlier review scope, and add a confirmed regression case. F4 remains real and unresolved.",
+        "passing": "F2=false-positive\nF3=intentional\nF4=deferred\nLink the confirmed F1 fix to h3. Record the production defect as missed because evidence confirms it existed in the earlier reviewed revision and scope, and add a confirmed regression case. F4 remains real and unresolved.",
         "failing": [
           "F2=false-positive\nF3=intentional\nF4=false-positive\nAll dismissed issues were noise, and production bugs do not affect clean reviews."
         ]
       },
-      "expected_output": "F2=false-positive\nF3=intentional\nF4=deferred\nLink the confirmed F1 fix to h3. Record the production defect as a missed defect against the earlier review scope, and add a confirmed regression case. F4 remains real and unresolved."
+      "expected_output": "F2=false-positive\nF3=intentional\nF4=deferred\nLink the confirmed F1 fix to h3. Record the production defect as missed because evidence confirms it existed in the earlier reviewed revision and scope, and add a confirmed regression case. F4 remains real and unresolved."
     },
     {
       "id": 15,
@@ -463,6 +468,37 @@
         ]
       },
       "expected_output": "BUDGET=EXHAUSTED\nPUBLICATION=NOT_AUTHORIZED\nReuse the unchanged evidence, retain the unresolved candidate and its counterevidence, and report the limit. Another skill does not reset the task budget or grant publication rights through a privileged worker."
+    },
+    {
+      "id": 16,
+      "eval_name": "missed-defects-require-reviewed-revision-evidence",
+      "prompt": "Calibrate the clean review of revision h1. F1 was discovered in h3; an independent reproduction confirms it already existed in h1 and was within the review scope. F2 affects the same module but a comparison shows it was introduced in h2, after the review. F3 was found later in the reviewed area, but h1 evidence is unavailable. Classify F1, F2 and F3 using missed, later-introduced or unverified; report MISSED as the count attributable to the h1 review. Do not infer prior existence from discovery time or module scope and do not change code.",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^F1=missed$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^F2=later-introduced$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^F3=unverified$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^MISSED=1$"
+        }
+      ],
+      "samples": {
+        "passing": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists.",
+        "failing": [
+          "F1=missed\nF2=missed\nF3=missed\nMISSED=3\nAll three affect the reviewed module, so every later-discovered defect was missed.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=2\nCount F3 as missed anyway because an earlier clean review should have caught it."
+        ]
+      },
+      "expected_output": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists."
     }
   ]
 }
