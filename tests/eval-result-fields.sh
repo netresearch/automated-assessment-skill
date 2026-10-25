@@ -98,6 +98,15 @@ for id in 4 5 10; do
                 expect fail "$id" "mixed contradictory $key format$format" "$answer"
             done
         done
+        # Whole-record code is a literal form: its underscore/star characters
+        # belong to the data rather than Markdown emphasis inside the span.
+        code_line=$(format_fields 5 "$key=$value")
+        expect pass "$id" "literal code $key" "${passing/"$line"/"$code_line"}"
+        for literal in "_$value" "${value}_" "*$value" "$value*"; do
+            code_line=$(format_fields 5 "$key=$literal")
+            expect fail "$id" "changed code literal $key=$literal" "${passing/"$line"/"$code_line"}"
+            expect fail "$id" "additional code literal $key=$literal" "$passing"$'\n'"$code_line"
+        done
         without=""
         while IFS= read -r kept; do
             [[ "$kept" == "$line" ]] || without+="$kept"$'\n'

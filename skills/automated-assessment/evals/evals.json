@@ -70,22 +70,22 @@
         },
         {
           "type": "content_regex",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*COMPUTED_FONT[[:space:]*_`]*[=:][[:space:]*_`]*Arial[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*COMPUTED_FONT[[:space:]_*]*[=:][[:space:]_*]*Arial[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+COMPUTED_FONT[[:space:]]*[=:][[:space:]]*Arial[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Reports the actual assigned family rather than the downloaded font"
         },
         {
           "type": "content_regex",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*REJECT[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*DECISION[[:space:]_*]*[=:][[:space:]_*]*REJECT[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+DECISION[[:space:]]*[=:][[:space:]]*REJECT[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects the broader completion claim"
         },
         {
           "type": "must_not",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*COMPUTED_FONT[[:space:]*_`]*[=:][[:space:]*_`]*(A|Ar|Ari|Aria|[^A[:space:]*_`].*|A[^r].*|Ar[^i].*|Ari[^a].*|Aria[^l].*|Arial[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*COMPUTED_FONT[[:space:]_*]*[=:][[:space:]_*]*(A|Ar|Ari|Aria|[^A[:space:]_*].*|A[^r].*|Ar[^i].*|Ari[^a].*|Aria[^l].*|Arial[[:space:]_*]*[^[:space:]_*].*)?[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+COMPUTED_FONT[[:space:]]*[=:][[:space:]]*(A|Ar|Ari|Aria|[^A[:space:]`].*|A[^r].*|Ar[^i].*|Ari[^a].*|Aria[^l].*|Arial[[:space:]`]*[^[:space:]`].*)?[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects any contradictory COMPUTED_FONT field, including unknown or extended values"
         },
         {
           "type": "must_not",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*(R|RE|REJ|REJE|REJEC|[^R[:space:]*_`].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*DECISION[[:space:]_*]*[=:][[:space:]_*]*(R|RE|REJ|REJE|REJEC|[^R[:space:]_*].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]_*]*[^[:space:]_*].*)?[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+DECISION[[:space:]]*[=:][[:space:]]*(R|RE|REJ|REJE|REJEC|[^R[:space:]`].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]`]*[^[:space:]`].*)?[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects any contradictory DECISION field, including unknown or extended values"
         }
       ],
@@ -97,7 +97,8 @@
           "Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the heading font is Raleway because it downloaded successfully. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.",
           "DECISION=REJECT\nCOMPUTED_FONT=Raleway\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.",
           "DECISION=REJECT\nCOMPUTED_FONT=Arial\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.\nCOMPUTED_FONT=Raleway",
-          "DECISION=REJECT\nCOMPUTED_FONT=Arial\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.\nDECISION=ACCEPT"
+          "DECISION=REJECT\nCOMPUTED_FONT=Arial\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.\nDECISION=ACCEPT",
+          "DECISION=REJECT\n  - `COMPUTED_FONT=Arial_`\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance."
         ]
       }
     },
@@ -109,32 +110,32 @@
       "assertions": [
         {
           "type": "content_regex",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*REJECT[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*DECISION[[:space:]_*]*[=:][[:space:]_*]*REJECT[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+DECISION[[:space:]]*[=:][[:space:]]*REJECT[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects equal-count identity substitution"
         },
         {
           "type": "content_regex",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*MISSING_IDS[[:space:]*_`]*[=:][[:space:]*_`]*c[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*MISSING_IDS[[:space:]_*]*[=:][[:space:]_*]*c[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+MISSING_IDS[[:space:]]*[=:][[:space:]]*c[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Names the concrete missing identity affirmatively"
         },
         {
           "type": "content_regex",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*UNEXPECTED_IDS[[:space:]*_`]*[=:][[:space:]*_`]*d[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*UNEXPECTED_IDS[[:space:]_*]*[=:][[:space:]_*]*d[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+UNEXPECTED_IDS[[:space:]]*[=:][[:space:]]*d[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Names the concrete substituted identity affirmatively"
         },
         {
           "type": "must_not",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*(R|RE|REJ|REJE|REJEC|[^R[:space:]*_`].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*DECISION[[:space:]_*]*[=:][[:space:]_*]*(R|RE|REJ|REJE|REJEC|[^R[:space:]_*].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]_*]*[^[:space:]_*].*)?[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+DECISION[[:space:]]*[=:][[:space:]]*(R|RE|REJ|REJE|REJEC|[^R[:space:]`].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]`]*[^[:space:]`].*)?[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects any contradictory DECISION field, including unknown or extended values"
         },
         {
           "type": "must_not",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*MISSING_IDS[[:space:]*_`]*[=:][[:space:]*_`]*([^c[:space:]*_`].*|c[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*MISSING_IDS[[:space:]_*]*[=:][[:space:]_*]*([^c[:space:]_*].*|c[[:space:]_*]*[^[:space:]_*].*)?[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+MISSING_IDS[[:space:]]*[=:][[:space:]]*([^c[:space:]`].*|c[[:space:]`]*[^[:space:]`].*)?[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects any contradictory MISSING_IDS field, including unknown or extended values"
         },
         {
           "type": "must_not",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*UNEXPECTED_IDS[[:space:]*_`]*[=:][[:space:]*_`]*([^d[:space:]*_`].*|d[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*UNEXPECTED_IDS[[:space:]_*]*[=:][[:space:]_*]*([^d[:space:]_*].*|d[[:space:]_*]*[^[:space:]_*].*)?[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+UNEXPECTED_IDS[[:space:]]*[=:][[:space:]]*([^d[:space:]`].*|d[[:space:]`]*[^[:space:]`].*)?[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects any contradictory UNEXPECTED_IDS field, including unknown or extended values"
         }
       ],
@@ -150,7 +151,8 @@
           "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=NONE\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.",
           "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.\nMISSING_IDS=NONE",
           "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.\nUNEXPECTED_IDS=NONE",
-          "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.\nDECISION=ACCEPT"
+          "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.\nDECISION=ACCEPT",
+          "DECISION=REJECT\n  - `MISSING_IDS=c_`\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage."
         ]
       }
     },
@@ -270,22 +272,22 @@
       "assertions": [
         {
           "type": "content_regex",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*ACCEPT_SCOPED[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*DECISION[[:space:]_*]*[=:][[:space:]_*]*ACCEPT_SCOPED[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+DECISION[[:space:]]*[=:][[:space:]]*ACCEPT_SCOPED[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Accepts complete evidence for its actual scope"
         },
         {
           "type": "content_regex",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*CERTIFICATION[[:space:]*_`]*[=:][[:space:]*_`]*NOT_ESTABLISHED[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*CERTIFICATION[[:space:]_*]*[=:][[:space:]_*]*NOT_ESTABLISHED[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+CERTIFICATION[[:space:]]*[=:][[:space:]]*NOT_ESTABLISHED[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Explicitly withholds whole-page WCAG certification"
         },
         {
           "type": "must_not",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*(A|AC|ACC|ACCE|ACCEP|ACCEPT|ACCEPT_|ACCEPT_S|ACCEPT_SC|ACCEPT_SCO|ACCEPT_SCOP|ACCEPT_SCOPE|[^A[:space:]*_`].*|A[^C].*|AC[^C].*|ACC[^E].*|ACCE[^P].*|ACCEP[^T].*|ACCEPT[^_].*|ACCEPT_[^S].*|ACCEPT_S[^C].*|ACCEPT_SC[^O].*|ACCEPT_SCO[^P].*|ACCEPT_SCOP[^E].*|ACCEPT_SCOPE[^D].*|ACCEPT_SCOPED[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*DECISION[[:space:]_*]*[=:][[:space:]_*]*(A|AC|ACC|ACCE|ACCEP|ACCEPT|ACCEPT_|ACCEPT_S|ACCEPT_SC|ACCEPT_SCO|ACCEPT_SCOP|ACCEPT_SCOPE|[^A[:space:]_*].*|A[^C].*|AC[^C].*|ACC[^E].*|ACCE[^P].*|ACCEP[^T].*|ACCEPT[^_].*|ACCEPT_[^S].*|ACCEPT_S[^C].*|ACCEPT_SC[^O].*|ACCEPT_SCO[^P].*|ACCEPT_SCOP[^E].*|ACCEPT_SCOPE[^D].*|ACCEPT_SCOPED[[:space:]_*]*[^[:space:]_*].*)?[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+DECISION[[:space:]]*[=:][[:space:]]*(A|AC|ACC|ACCE|ACCEP|ACCEPT|ACCEPT_|ACCEPT_S|ACCEPT_SC|ACCEPT_SCO|ACCEPT_SCOP|ACCEPT_SCOPE|[^A[:space:]`].*|A[^C].*|AC[^C].*|ACC[^E].*|ACCE[^P].*|ACCEP[^T].*|ACCEPT[^_].*|ACCEPT_[^S].*|ACCEPT_S[^C].*|ACCEPT_SC[^O].*|ACCEPT_SCO[^P].*|ACCEPT_SCOP[^E].*|ACCEPT_SCOPE[^D].*|ACCEPT_SCOPED[[:space:]`]*[^[:space:]`].*)?[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects any contradictory DECISION field, including unknown or extended values"
         },
         {
           "type": "must_not",
-          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*CERTIFICATION[[:space:]*_`]*[=:][[:space:]*_`]*(N|NO|NOT|NOT_|NOT_E|NOT_ES|NOT_EST|NOT_ESTA|NOT_ESTAB|NOT_ESTABL|NOT_ESTABLI|NOT_ESTABLIS|NOT_ESTABLISH|NOT_ESTABLISHE|[^N[:space:]*_`].*|N[^O].*|NO[^T].*|NOT[^_].*|NOT_[^E].*|NOT_E[^S].*|NOT_ES[^T].*|NOT_EST[^A].*|NOT_ESTA[^B].*|NOT_ESTAB[^L].*|NOT_ESTABL[^I].*|NOT_ESTABLI[^S].*|NOT_ESTABLIS[^H].*|NOT_ESTABLISH[^E].*|NOT_ESTABLISHE[^D].*|NOT_ESTABLISHED[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "pattern": "(^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*CERTIFICATION[[:space:]_*]*[=:][[:space:]_*]*(N|NO|NOT|NOT_|NOT_E|NOT_ES|NOT_EST|NOT_ESTA|NOT_ESTAB|NOT_ESTABL|NOT_ESTABLI|NOT_ESTABLIS|NOT_ESTABLISH|NOT_ESTABLISHE|[^N[:space:]_*].*|N[^O].*|NO[^T].*|NOT[^_].*|NOT_[^E].*|NOT_E[^S].*|NOT_ES[^T].*|NOT_EST[^A].*|NOT_ESTA[^B].*|NOT_ESTAB[^L].*|NOT_ESTABL[^I].*|NOT_ESTABLI[^S].*|NOT_ESTABLIS[^H].*|NOT_ESTABLISH[^E].*|NOT_ESTABLISHE[^D].*|NOT_ESTABLISHED[[:space:]_*]*[^[:space:]_*].*)?[[:space:]_*]*$|^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[_*]*`+CERTIFICATION[[:space:]]*[=:][[:space:]]*(N|NO|NOT|NOT_|NOT_E|NOT_ES|NOT_EST|NOT_ESTA|NOT_ESTAB|NOT_ESTABL|NOT_ESTABLI|NOT_ESTABLIS|NOT_ESTABLISH|NOT_ESTABLISHE|[^N[:space:]`].*|N[^O].*|NO[^T].*|NOT[^_].*|NOT_[^E].*|NOT_E[^S].*|NOT_ES[^T].*|NOT_EST[^A].*|NOT_ESTA[^B].*|NOT_ESTAB[^L].*|NOT_ESTABL[^I].*|NOT_ESTABLI[^S].*|NOT_ESTABLIS[^H].*|NOT_ESTABLISH[^E].*|NOT_ESTABLISHE[^D].*|NOT_ESTABLISHED[[:space:]`]*[^[:space:]`].*)?[[:space:]]*`+[[:space:]_*]*$)",
           "description": "Rejects any contradictory CERTIFICATION field, including unknown or extended values"
         }
       ],
@@ -296,7 +298,8 @@
           "DECISION=ACCEPT_SCOPED. There is no doubt that these checks establish whole-page WCAG certification.",
           "DECISION=ACCEPT_SCOPED\nCERTIFICATION=ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.",
           "DECISION=ACCEPT_SCOPED\nCERTIFICATION=NOT_ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.\nCERTIFICATION=ESTABLISHED",
-          "DECISION=ACCEPT_SCOPED\nCERTIFICATION=NOT_ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.\nDECISION=REJECT"
+          "DECISION=ACCEPT_SCOPED\nCERTIFICATION=NOT_ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.\nDECISION=REJECT",
+          "DECISION=ACCEPT_SCOPED\n  - `CERTIFICATION=NOT_ESTABLISHED_`\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope."
         ]
       }
     }
