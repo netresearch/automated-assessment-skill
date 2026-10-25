@@ -45,8 +45,8 @@
     {
       "id": 4,
       "eval_name": "completion-claim-must-match-evidence-contract",
-      "prompt": "Assess this completion claim: \"All 18 language routes passed; all linked media and heading typography are verified, so the sites are fully compliant.\" The cited artifact is revision-bound and declares aggregate_success=true. Expected route identities: [\"portfolio_en\", \"portfolio_de\", \"stack_en\", \"stack_de\", \"impact_en\", \"impact_de\", \"browser_en\", \"browser_de\", \"mcp_en\", \"mcp_de\", \"llm_en\", \"llm_de\", \"browser_manual_en\", \"browser_manual_de\", \"mcp_manual_en\", \"mcp_manual_de\", \"llm_manual_en\", \"llm_manual_de\"]. Artifact rows (all report HTTP 200): [\"portfolio_en\", \"portfolio_de\", \"stack_en\", \"stack_de\", \"impact_en\", \"impact_de\", \"browser_en\", \"browser_de\", \"mcp_en\", \"mcp_de\", \"llm_en\", \"llm_de\", \"browser_manual_en\", \"browser_manual_de\", \"mcp_manual_en\", \"mcp_manual_de\", \"llm_manual_en\", \"llm_manual_en\"]. Additional witnesses: browser_de final language=en; the social image request reports Content-Type:text/html; Raleway is loaded but computed heading font-family is Arial. Decide whether the completion claim is substantiated, identify the concrete missing/contradictory evidence and state the permissible scope. Do not fix the sites.",
-      "expected_output": "Rejects the complete 18-route/semantic/compliance claim using the explicit manifest and per-target contradictions, distinguishes18 rows from17 unique targets and limits any accepted statement to actual evidence.",
+      "prompt": "Assess this completion claim: \"All 18 language routes passed; all linked media and heading typography are verified, so the sites are fully compliant.\" The cited artifact is revision-bound and declares aggregate_success=true. Expected route identities: [\"portfolio_en\", \"portfolio_de\", \"stack_en\", \"stack_de\", \"impact_en\", \"impact_de\", \"browser_en\", \"browser_de\", \"mcp_en\", \"mcp_de\", \"llm_en\", \"llm_de\", \"browser_manual_en\", \"browser_manual_de\", \"mcp_manual_en\", \"mcp_manual_de\", \"llm_manual_en\", \"llm_manual_de\"]. Artifact rows (all report HTTP 200): [\"portfolio_en\", \"portfolio_de\", \"stack_en\", \"stack_de\", \"impact_en\", \"impact_de\", \"browser_en\", \"browser_de\", \"mcp_en\", \"mcp_de\", \"llm_en\", \"llm_de\", \"browser_manual_en\", \"browser_manual_de\", \"mcp_manual_en\", \"mcp_manual_de\", \"llm_manual_en\", \"llm_manual_en\"]. Additional witnesses: browser_de final language=en; the social image request reports Content-Type:text/html; Raleway is loaded but computed heading font-family is Arial. Decide whether the completion claim is substantiated, identify the concrete missing/contradictory evidence and state the permissible scope. Do not fix the sites. Return the following result fields, each on its own line, before a short explanation: DECISION=ACCEPT or REJECT; COMPUTED_FONT=<observed family>. Use the concrete observed value or IDs, not negated prose. Use NONE for an empty identity set; separate multiple IDs with commas. A field has one value: do not add a conflicting duplicate. Plain text, Markdown emphasis, code fences or a Markdown list are acceptable, but do not append prose to a field line.",
+      "expected_output": "Rejects the complete 18-route/semantic/compliance claim using the explicit manifest and per-target contradictions, distinguishes18 rows from17 unique targets, reports computed Arial in the result field and limits any accepted statement to actual evidence.",
       "assertions": [
         {
           "type": "content_regex",
@@ -70,52 +70,87 @@
         },
         {
           "type": "content_regex",
-          "pattern": "(computed|assigned|heading).{0,100}(font|Arial)",
-          "description": "Checks assignment rather than font download alone"
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*COMPUTED_FONT[[:space:]*_`]*[=:][[:space:]*_`]*Arial[[:space:]*_`]*$",
+          "description": "Reports the actual assigned family rather than the downloaded font"
         },
         {
           "type": "content_regex",
-          "pattern": "(reject|unsubstantiated|not substantiated|cannot.{0,40}(close|certif|compliant))",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*REJECT[[:space:]*_`]*$",
           "description": "Rejects the broader completion claim"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*COMPUTED_FONT[[:space:]*_`]*[=:][[:space:]*_`]*(A|Ar|Ari|Aria|[^A[:space:]*_`].*|A[^r].*|Ar[^i].*|Ari[^a].*|Aria[^l].*|Arial[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "description": "Rejects any contradictory COMPUTED_FONT field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*(R|RE|REJ|REJE|REJEC|[^R[:space:]*_`].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "description": "Rejects any contradictory DECISION field, including unknown or extended values"
         }
       ],
       "samples": {
-        "passing": "Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.",
+        "passing": "DECISION=REJECT\nCOMPUTED_FONT=Arial\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.",
         "failing": [
           "All 18routes passed because 18 rows report200and aggregate_success=true. The image is accessible and Raleway is loaded, so all sites are fully compliant.",
-          "Reject the missing llm_manual_de route:18 rows contain 17 unique targets. All other checks are proven by 200 responses and loaded font files."
+          "Reject the missing llm_manual_de route:18 rows contain 17 unique targets. All other checks are proven by 200 responses and loaded font files.",
+          "Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the heading font is Raleway because it downloaded successfully. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.",
+          "DECISION=REJECT\nCOMPUTED_FONT=Raleway\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.",
+          "DECISION=REJECT\nCOMPUTED_FONT=Arial\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.\nCOMPUTED_FONT=Raleway",
+          "DECISION=REJECT\nCOMPUTED_FONT=Arial\nReject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the computed heading font is Arial despite a loaded Raleway font. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.\nDECISION=ACCEPT"
         ]
       }
     },
     {
       "id": 5,
       "eval_name": "equal-counts-do-not-prove-target-identity",
-      "prompt": "Claim: all three expected targets a,b,c passed at revision R2. Artifact is current for R2 and contains three successful unique targets a,b,d, with correct individual resource witnesses. Compare the identity sets. Return DECISION=ACCEPT or DECISION=REJECT and name the missing/unexpected target.",
+      "prompt": "Claim: all three expected targets a,b,c passed at revision R2. Artifact is current for R2 and contains three successful unique targets a,b,d, with correct individual resource witnesses. Compare the identity sets. Return the following result fields, each on its own line, before a short explanation: DECISION=ACCEPT or REJECT; MISSING_IDS=<expected IDs absent from artifact>; UNEXPECTED_IDS=<artifact IDs absent from expected set>. Use the concrete observed value or IDs, not negated prose. Use NONE for an empty identity set; separate multiple IDs with commas. A field has one value: do not add a conflicting duplicate. Plain text, Markdown emphasis, code fences or a Markdown list are acceptable, but do not append prose to a field line.",
       "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
       "assertions": [
         {
           "type": "content_regex",
-          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*REJECT",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*REJECT[[:space:]*_`]*$",
           "description": "Rejects equal-count identity substitution"
         },
         {
           "type": "content_regex",
-          "pattern": "(^|[^[:alnum:]_])(missing|absent)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(c)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(c)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(missing|absent)([^[:alnum:]_]|$)",
-          "description": "Names the missing identity"
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*MISSING_IDS[[:space:]*_`]*[=:][[:space:]*_`]*c[[:space:]*_`]*$",
+          "description": "Names the concrete missing identity affirmatively"
         },
         {
           "type": "content_regex",
-          "pattern": "(^|[^[:alnum:]_])(unexpected|extra)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(d)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(d)([^[:alnum:]_]|[^[:alnum:]_].{0,30}[^[:alnum:]_])(unexpected|extra)([^[:alnum:]_]|$)",
-          "description": "Names the substituted identity"
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*UNEXPECTED_IDS[[:space:]*_`]*[=:][[:space:]*_`]*d[[:space:]*_`]*$",
+          "description": "Names the concrete substituted identity affirmatively"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*(R|RE|REJ|REJE|REJEC|[^R[:space:]*_`].*|R[^E].*|RE[^J].*|REJ[^E].*|REJE[^C].*|REJEC[^T].*|REJECT[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "description": "Rejects any contradictory DECISION field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*MISSING_IDS[[:space:]*_`]*[=:][[:space:]*_`]*([^c[:space:]*_`].*|c[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "description": "Rejects any contradictory MISSING_IDS field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*UNEXPECTED_IDS[[:space:]*_`]*[=:][[:space:]*_`]*([^d[:space:]*_`].*|d[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "description": "Rejects any contradictory UNEXPECTED_IDS field, including unknown or extended values"
         }
       ],
       "samples": {
-        "passing": "DECISION=REJECT. Missing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.",
+        "passing": "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.",
         "failing": [
           "DECISION=ACCEPT. Three unique successful rows match the expected count, so all targets passed.",
           "DECISION=REJECT. Missing concrete evidence; unexpected data.",
           "DECISION=REJECT. Missing concrete evidence; unexpected target d.",
-          "DECISION=REJECT. Missing target c; unexpected data."
+          "DECISION=REJECT. Missing target c; unexpected data.",
+          "DECISION=REJECT. Target c is not missing; target d is not unexpected.",
+          "DECISION=REJECT\nMISSING_IDS=NONE\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.",
+          "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=NONE\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.",
+          "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.\nMISSING_IDS=NONE",
+          "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.\nUNEXPECTED_IDS=NONE",
+          "DECISION=REJECT\nMISSING_IDS=c\nUNEXPECTED_IDS=d\nMissing target c; unexpected target d. Equal unique counts do not establish identity-set coverage.\nDECISION=ACCEPT"
         ]
       }
     },
@@ -230,24 +265,38 @@
     {
       "id": 10,
       "eval_name": "complete-scoped-evidence-can-pass",
-      "prompt": "Claim: the measured header contrast passed for routes a,b at revision R2 in light and dark at320px and1440px. The artifact matches R2 and the exact unique target/locale/theme/viewport manifest, contains a valid passing contrast witness for every expected case and no contradictory row. Return DECISION=ACCEPT_SCOPED or DECISION=REJECT. State whether these results establish whole-page WCAG certification.",
+      "prompt": "Claim: the measured header contrast passed for routes a,b at revision R2 in light and dark at320px and1440px. The artifact matches R2 and the exact unique target/locale/theme/viewport manifest, contains a valid passing contrast witness for every expected case and no contradictory row. Decide whether to accept the scoped claim and whether these results establish whole-page WCAG certification. Return the following result fields, each on its own line, before a short explanation: DECISION=ACCEPT_SCOPED or REJECT; CERTIFICATION=ESTABLISHED or NOT_ESTABLISHED (whole-page WCAG certification). Use the concrete observed value or IDs, not negated prose. Use NONE for an empty identity set; separate multiple IDs with commas. A field has one value: do not add a conflicting duplicate. Plain text, Markdown emphasis, code fences or a Markdown list are acceptable, but do not append prose to a field line.",
       "expected_output": "A decision justified by identity, revision and per-target evidence, bounded to the claim actually assessed.",
       "assertions": [
         {
           "type": "content_regex",
-          "pattern": "DECISION[[:space:]*_]*[=:][[:space:]*_]*ACCEPT_SCOPED",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*ACCEPT_SCOPED[[:space:]*_`]*$",
           "description": "Accepts complete evidence for its actual scope"
         },
         {
           "type": "content_regex",
-          "pattern": "no.{0,60}(whole.page|WCAG|certif)|not.{0,60}(whole.page|WCAG|certif)",
-          "description": "Preserves the limit of the positive result"
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*CERTIFICATION[[:space:]*_`]*[=:][[:space:]*_`]*NOT_ESTABLISHED[[:space:]*_`]*$",
+          "description": "Explicitly withholds whole-page WCAG certification"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*DECISION[[:space:]*_`]*[=:][[:space:]*_`]*(A|AC|ACC|ACCE|ACCEP|ACCEPT|ACCEPT_|ACCEPT_S|ACCEPT_SC|ACCEPT_SCO|ACCEPT_SCOP|ACCEPT_SCOPE|[^A[:space:]*_`].*|A[^C].*|AC[^C].*|ACC[^E].*|ACCE[^P].*|ACCEP[^T].*|ACCEPT[^_].*|ACCEPT_[^S].*|ACCEPT_S[^C].*|ACCEPT_SC[^O].*|ACCEPT_SCO[^P].*|ACCEPT_SCOP[^E].*|ACCEPT_SCOPE[^D].*|ACCEPT_SCOPED[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "description": "Rejects any contradictory DECISION field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^[[:space:]]*(#+[[:space:]]+|[-+*][[:space:]]+|[0-9]+[.)][[:space:]]+)?[*_`]*CERTIFICATION[[:space:]*_`]*[=:][[:space:]*_`]*(N|NO|NOT|NOT_|NOT_E|NOT_ES|NOT_EST|NOT_ESTA|NOT_ESTAB|NOT_ESTABL|NOT_ESTABLI|NOT_ESTABLIS|NOT_ESTABLISH|NOT_ESTABLISHE|[^N[:space:]*_`].*|N[^O].*|NO[^T].*|NOT[^_].*|NOT_[^E].*|NOT_E[^S].*|NOT_ES[^T].*|NOT_EST[^A].*|NOT_ESTA[^B].*|NOT_ESTAB[^L].*|NOT_ESTABL[^I].*|NOT_ESTABLI[^S].*|NOT_ESTABLIS[^H].*|NOT_ESTABLISH[^E].*|NOT_ESTABLISHE[^D].*|NOT_ESTABLISHED[[:space:]*_`]*[^[:space:]*_`].*)?[[:space:]*_`]*$",
+          "description": "Rejects any contradictory CERTIFICATION field, including unknown or extended values"
         }
       ],
       "samples": {
-        "passing": "DECISION=ACCEPT_SCOPED. The revision, identity set and valid per-case witnesses substantiate measured header contrast. No whole-page WCAG certification follows from this scope.",
+        "passing": "DECISION=ACCEPT_SCOPED\nCERTIFICATION=NOT_ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.",
         "failing": [
-          "DECISION=REJECT. No automated or focused test evidence can ever substantiate a positive claim."
+          "DECISION=REJECT. No automated or focused test evidence can ever substantiate a positive claim.",
+          "DECISION=ACCEPT_SCOPED. There is no doubt that these checks establish whole-page WCAG certification.",
+          "DECISION=ACCEPT_SCOPED\nCERTIFICATION=ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.",
+          "DECISION=ACCEPT_SCOPED\nCERTIFICATION=NOT_ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.\nCERTIFICATION=ESTABLISHED",
+          "DECISION=ACCEPT_SCOPED\nCERTIFICATION=NOT_ESTABLISHED\nThe revision, identity set and valid per-case witnesses substantiate measured header contrast. Whole-page WCAG certification is not established by this scope.\nDECISION=REJECT"
         ]
       }
     }
