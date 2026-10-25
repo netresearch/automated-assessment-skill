@@ -132,6 +132,14 @@ expect fail 16 'checked disclaimer' "$fields"$'\nThe h1 evidence was not checked
 expect fail 16 'verified disclaimer' "$fields"$'\nH1 evidence has never been verified.'
 expect fail 16 'comparison disclaimer' "$fields"$'\nThe revisions have not been compared.'
 expect fail 16 'original review counterexample' "$fields"$'\nThe revisions were not compared, and h1 evidence was never checked.'
+expect pass 16 'F3 continued disclaimer' "$fields"$'\nThe h1 evidence was not checked for F3 and its attribution remains unverified. The supplied evidence establishes F1 and F2.'
+expect pass 16 'F2 supplied comparison needs no personal rerun' "$fields"$'\nThe revisions were not compared for F2 by me. The supplied comparison establishes its introduction in h2.'
+expect pass 16 'parenthetical personal qualifier' "$fields"$'\nThe h1 evidence was not checked (by me). The revisions were not compared for F2 (by me). The supplied independent reproduction and comparison establish F1 and F2.'
+expect pass 16 'F1 reproduction needs no revision comparison' "$fields"$'\nThe revisions were not compared for F1. The independent h1 reproduction establishes F1, and the supplied h1/h2 comparison establishes F2.'
+for boundary in ',' '.' ';' ':' '!' '?' ' and ' ' or ' ' but ' ' because ' ' so ' ' yet ' ' although ' ' though ' ' while ' ' whereas ' ' since ' ' however ' ' therefore ' ' hence '; do
+    expect fail 16 "evidence denial boundary=$boundary" "$fields"$'\n'"The h1 evidence was never checked${boundary}F1 is a guess."
+    expect fail 16 "comparison denial boundary=$boundary" "$fields"$'\n'"The revisions were not compared for F2${boundary}F2 is a guess."
+done
 
 # These actual review counterexamples passed every assertion before the repair.
 expect fail 4 'download substituted for computed assignment' 'Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the heading font is Raleway because it downloaded successfully. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.'

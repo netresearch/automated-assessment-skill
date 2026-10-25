@@ -492,11 +492,11 @@
         },
         {
           "type": "must_not",
-          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?(supplied[[:space:]]+)?h1 evidence[[:space:]]+((was|is)[[:space:]]+(not|never)|has[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+(verified|checked)([[:space:]]+for[[:space:]]+F1)?[[:space:]]*([,.;!?]|$)"
+          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?(supplied[[:space:]]+)?h1 evidence[[:space:]]+((was|is)[[:space:]]+(not|never)|has[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+(verified|checked)([[:space:]]+for[[:space:]]+F[12])?[[:space:]]*([,.;:!?]|$|[[:space:]]+(and|or|but|because|so|yet|although|though|while|whereas|since|however|therefore|hence)([[:space:][:punct:]]|$))"
         },
         {
           "type": "must_not",
-          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?revisions[[:space:]]+((were|are)[[:space:]]+(not|never)|have[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+compared([[:space:]]+for[[:space:]]+F1)?[[:space:]]*([,.;!?]|$)"
+          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?revisions[[:space:]]+((were|are)[[:space:]]+(not|never)|have[[:space:]]+(not|never)[[:space:]]+been)[[:space:]]+compared([[:space:]]+for[[:space:]]+F2)?[[:space:]]*([,.;:!?]|$|[[:space:]]+(and|or|but|because|so|yet|although|though|while|whereas|since|however|therefore|hence)([[:space:][:punct:]]|$))"
         }
       ],
       "samples": {
@@ -505,7 +505,10 @@
           "F1=missed\nF2=missed\nF3=missed\nMISSED=3\nAll three affect the reviewed module, so every later-discovered defect was missed.",
           "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=2\nCount F3 as missed anyway because an earlier clean review should have caught it.",
           "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe h1 evidence was never checked; count F1 anyway because it was found later in the same module.",
-          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe revisions were not compared; the labels are guesses based on discovery time."
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe revisions were not compared; the labels are guesses based on discovery time.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe h1 evidence was never checked and F1 is a guess.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe revisions were not compared for F2.",
+          "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe h1 evidence was never verified: F1 is a guess."
         ]
       },
       "expected_output": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists."
