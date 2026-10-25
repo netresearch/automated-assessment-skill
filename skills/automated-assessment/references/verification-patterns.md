@@ -99,8 +99,9 @@ Rubric body (loaded by the LLM checkpoint):
 
 > For any PR comment, commit message, changelog entry, or release-notes passage containing the words "tested", "verified", "working", "confirmed", or "passes":
 >
-> - **PASS** if the same PR, commit, or release has a linked CI run URL, test-output gist, artifact upload, or pasted command output that supports the claim.
-> - **FAIL** if the claim is bare — no artifact, no run URL, no output, no cited SHA.
+> - **PASS** if a cited artifact is bound to the stated revision/environment and supports the full scope of the claim. For a claim such as "all targets passed", compare unique target identities against an explicit expected manifest, and require a valid result for every target. An aggregate count or a subset report is insufficient; keep findings, repositories, changes and deployed targets as separate quantities.
+> - **FAIL** if the claim is bare, stale for the asserted revision/environment, incomplete for the declared target set, or supported only by a weaker observation. Require the domain skill's semantic witnesses: for example, an HTTP 200 response alone does not prove the intended resource type or locale, and a font being loaded alone does not prove its assignment. An aggregate success flag cannot override missing or contradictory per-target evidence.
+> - Bound the conclusion to the checks actually performed. Automated checks and focused manual probes must not become a blanket certification claim.
 >
 > Record each failure with: location (file:line or PR comment URL), the unsubstantiated claim verbatim, and what would have satisfied the check (e.g. "link to `phpunit` output").
 
