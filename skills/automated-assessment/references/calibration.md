@@ -29,6 +29,35 @@ Once per release cycle (or quarterly for low-velocity repos), audit checkpoint o
 
 Use `--review` to surface candidates; demote to `info`, retire, or tighten the rule based on findings. The point is not to maximize checkpoint count — it is to keep the ones that still predict something true.
 
+### Finding feedback, including clean reviews
+
+Keep a ledger keyed by stable finding ID and the reviewed revision. Record the
+checkpoint/rule version, affected file and line, trigger, impact, evidence and
+validation result. Separate impact severity from confidence in the evidence;
+an uncalibrated score or agreement between agents does not prove a defect.
+
+Close each candidate with a reason: `confirmed`, `false-positive`, `intentional`
+(the behavior is desired), or `deferred` (a real issue accepted for later work).
+An unexplained dismissal is not a false positive, and a deferred defect is not a
+successful fix. Preserve old/new revision links when a repair resolves a finding.
+Record defects found after a clean review as missed defects against that review's
+scope, including which check should have found them. Do not blame a PR for an
+older defect; repository-wide assessments can still report that existing defect.
+
+Use confirmed historical failures and independently verified clean examples in
+regression evaluations. Measure known-defect recall, false positives and harmful
+repair suggestions on clean examples together with rounds, elapsed time and
+tool/token usage. A larger comment count is not a quality improvement. Keep
+environment errors, denied access and timeouts visible outside valid negative
+examples so they cannot inflate a clean-review rate.
+
+Recheck the baseline after a model, prompt, tool or harness change. Compare old
+and new conditions on the same isolated fixtures; reserve separate final test
+cases from those used to tune the rule. Remove one mechanism at a time when
+testing whether it still contributes. Retire a rule that adds cost or interrupts
+authorized work without a demonstrated benefit; a team preference can remain
+useful without being claimed as an increase in model capability.
+
 ## Calibration Anchor
 
 This rule applies at checkpoint *generation* time, via `add-checkpoints`. For each generated checkpoint, record (in a comment or accompanying note) the **defect class it predicts**:
@@ -50,5 +79,12 @@ A checkpoint without a predicted defect class is a candidate for `info` severity
 Adding checkpoints to plug every past defect, never retiring any, until the suite is slow and noisy enough that the team stops reading it. A checkpoint that nobody acts on is worse than no checkpoint — it costs CI time AND trains the team to ignore the report.
 
 ## Inspiration
+
+Anthropic's [code-review engineering account](https://claude.dev/blog/solving-code-review-at-anthropic/)
+describes separate finding validation, clean-change probes and convergence
+controls. Its [agent evaluation guide](https://www.anthropic.com/research/demystifying-evals-for-ai-agents)
+distinguishes actual outcomes from a transcript's claims. These support the
+feedback contract above; their reported improvements are not measurements of
+this skill.
 
 The framing comes from [Spotify Engineering — Better Experiments with LLM Evals: A Funnel, Not a Fork](https://engineering.atspotify.com/2026/5/better-experiments-with-llm-evals-a-funnel-not-a-fork). Their core observation: *"without offline-online signal calibration, our evals are opinions, not evidence."* The same logic transfers to mechanical checkpoints — without periodic outcome correlation, a green checkpoint is an opinion, not evidence.

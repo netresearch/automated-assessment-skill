@@ -1,0 +1,10 @@
+[
+  {"query":"Run the checkpoint assessment for this repository and separate missing evidence from actual defects.","should_trigger":true},
+  {"query":"Our assessment reports keep producing false alarms. Review their calibration and suggest scoped checkpoint changes.","should_trigger":true},
+  {"query":"We want to raise mutation coverage and need a checkpoint-backed gap analysis before changing tests.","should_trigger":true},
+  {"query":"Check whether this release's claimed verification is supported by the applicable checkpoint results.","should_trigger":true},
+  {"query":"Review this one function's retry logic; no project-wide audit or test-infrastructure work is requested.","should_trigger":false},
+  {"query":"Correct the spelling in the first paragraph of the README.","should_trigger":false},
+  {"query":"Explain what a mutation test is with a small example; do not inspect a project.","should_trigger":false},
+  {"query":"Create a plain-English summary of these customer survey comments.","should_trigger":false}
+]
