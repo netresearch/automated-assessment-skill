@@ -60,12 +60,21 @@ format_fields() {
                 12) printf '_%s_: _%s_\n' "$key" "$value" ;;
                 13) printf '**%s**=%s\n' "$key" "$value" ;;
                 14) printf '_%s_=%s\n' "$key" "$value" ;;
+                *) printf 'Unsupported field format: %s\n' "$format" >&2; return 2 ;;
             esac
         else
             printf '%s\n' "$line"
         fi
     done <<<"$answer"
 }
+
+unknown_rc=0
+unknown_output=$(format_fields unknown 'DECISION=REJECT' 2>&1) || unknown_rc=$?
+checks=$((checks + 1))
+if [[ "$unknown_rc" -ne 2 || "$unknown_output" != 'Unsupported field format: unknown' ]]; then
+    printf 'FAIL unknown format: expected diagnostic/exit2, got exit%s: %s\n' "$unknown_rc" "$unknown_output"
+    fail=1
+fi
 
 for id in 4 5 10; do
     passing=$(jq -r --argjson id "$id" '.evals[] | select(.id == $id) | .samples.passing' "$EVALS")
