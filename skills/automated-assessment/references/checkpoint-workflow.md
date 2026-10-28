@@ -85,6 +85,13 @@ This runs all `file_exists`, `contains`, `regex`, etc. checks without any LLM in
 
 ### Step 4: Run Domain Agents (Tier 2)
 
+Where the task or project declares a formal/model-based guarantee, include its
+applicable review checkpoint in the domain batch. Use the formal-claim rubric in
+`verification-patterns.md`; do not infer a native checker run from a receipt or
+LLM verdict. Explicitly required checks need a consumer gate that treats absent,
+skipped or blocked coverage as incomplete. A valid counterexample can finish a
+design-only assessment without creating an application or CI repair task.
+
 Group only applicable `llm_review` checkpoints by domain. Choose focused agents
 for independently reviewable risks; a small, single-domain task may need one.
 Do not start duplicate reviews because two loaded skills request the same check.

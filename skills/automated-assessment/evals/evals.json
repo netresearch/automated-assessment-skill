@@ -512,6 +512,70 @@
         ]
       },
       "expected_output": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists."
+    },
+    {
+      "id": 17,
+      "eval_name": "formal-assurance-needs-native-semantic-evidence",
+      "prompt": "Assess this formal assurance claim only; do not change code or CI. A receipt validator reports pass, all its artifact hashes match, and outcome.passed is true. Its own checks say search_complete=false and the unsafe control ended with a parser error. The report names invariant SafeCommit, but its raw result checked a different property and has no model-to-implementation mapping. Is the production claim substantiated? Return STRUCTURE, MODEL, IMPLEMENTATION and DEFECT classifications, separating missing evidence from a demonstrated implementation defect. Return four unadorned KEY=value classification lines before any brief explanation: STRUCTURE uses consistent, inconsistent or unverified; MODEL uses verified, unsubstantiated or unverified; IMPLEMENTATION uses verified or unverified; DEFECT uses confirmed or not-established. Choose each value from the evidence. Do not append prose to field lines or add a conflicting value; the explanation must agree with the classifications.",
+      "expected_output": "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=not-established",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^STRUCTURE=consistent$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^MODEL=unsubstantiated$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^IMPLEMENTATION=unverified$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^DEFECT=not-established$"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^STRUCTURE=(c|co|con|cons|consi|consis|consist|consiste|consisten|[^c].*|c[^o].*|co[^n].*|con[^s].*|cons[^i].*|consi[^s].*|consis[^t].*|consist[^e].*|consiste[^n].*|consisten[^t].*|consistent.+)?$",
+          "description": "Rejects an additional incompatible STRUCTURE field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^MODEL=(u|un|uns|unsu|unsub|unsubs|unsubst|unsubsta|unsubstan|unsubstant|unsubstanti|unsubstantia|unsubstantiat|unsubstantiate|[^u].*|u[^n].*|un[^s].*|uns[^u].*|unsu[^b].*|unsub[^s].*|unsubs[^t].*|unsubst[^a].*|unsubsta[^n].*|unsubstan[^t].*|unsubstant[^i].*|unsubstanti[^a].*|unsubstantia[^t].*|unsubstantiat[^e].*|unsubstantiate[^d].*|unsubstantiated.+)?$",
+          "description": "Rejects an additional incompatible MODEL field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^IMPLEMENTATION=(u|un|unv|unve|unver|unveri|unverif|unverifi|unverifie|[^u].*|u[^n].*|un[^v].*|unv[^e].*|unve[^r].*|unver[^i].*|unveri[^f].*|unverif[^i].*|unverifi[^e].*|unverifie[^d].*|unverified.+)?$",
+          "description": "Rejects an additional incompatible IMPLEMENTATION field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "^DEFECT=(n|no|not|not-|not-e|not-es|not-est|not-esta|not-estab|not-establ|not-establi|not-establis|not-establish|not-establishe|[^n].*|n[^o].*|no[^t].*|not[^-].*|not-[^e].*|not-e[^s].*|not-es[^t].*|not-est[^a].*|not-esta[^b].*|not-estab[^l].*|not-establ[^i].*|not-establi[^s].*|not-establis[^h].*|not-establish[^e].*|not-establishe[^d].*|not-established.+)?$",
+          "description": "Rejects an additional incompatible DEFECT field, including unknown or extended values"
+        },
+        {
+          "type": "must_not",
+          "pattern": "(^|[.!?][[:space:]]+)(the[[:space:]]+)?production[[:space:]]+(claim|guarantee)[[:space:]]+(is|has[[:space:]]+been)[[:space:]]+(formally[[:space:]]+)?(proved|proven|verified|established|substantiated)([^[:alnum:]_]|$)",
+          "description": "Rejects direct positive production-assurance statements beside the unsupported classifications; broader prose needs semantic review"
+        }
+      ],
+      "expectations": [
+        "Distinguishes the consistency validator's trusted outcome boundary from an executed and correctly interpreted native checker result.",
+        "Rejects the incomplete search, parser-error control and mismatched property as evidence for SafeCommit without inferring an implementation bug.",
+        "Preserves review-only scope, and requires actual property/configuration/revision binding and semantic witnesses for a positive assurance claim.",
+        "Keeps classifications and explanation consistent: correct result fields do not excuse a contradictory assertion that the model or production guarantee is verified. Text patterns cover the recorded counterexamples, not all natural-language contradictions."
+      ],
+      "samples": {
+        "passing": "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=not-established\nThe receipt is internally consistent, but the domain result is incomplete and the parser error is not an intended invariant counterexample. Inspect the native checker, intended property, configuration, revision and reachability. Keep this assessment-only; these records do not establish a production defect.",
+        "failing": [
+          "STRUCTURE=consistent\nMODEL=verified\nIMPLEMENTATION=verified\nDEFECT=none\nHashes and outcome.passed make the production claim formally proved.",
+          "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=confirmed\nThe incomplete checker proves that the application is broken.",
+          "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=not-established\nMODEL=verified",
+          "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=not-established\nThe production guarantee is proved."
+        ]
+      }
     }
   ]
 }

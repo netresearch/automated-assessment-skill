@@ -102,10 +102,57 @@ Rubric body (loaded by the LLM checkpoint):
 > - **PASS** if a cited artifact is bound to the stated revision/environment and supports the full scope of the claim. For a claim such as "all targets passed", compare unique target identities against an explicit expected manifest, and require a valid result for every target. An aggregate count or a subset report is insufficient; keep findings, repositories, changes and deployed targets as separate quantities.
 > - **FAIL** if the claim is bare, stale for the asserted revision/environment, incomplete for the declared target set, or supported only by a weaker observation. Require the domain skill's semantic witnesses: for example, an HTTP 200 response alone does not prove the intended resource type or locale, and a font being loaded alone does not prove its assignment. An aggregate success flag cannot override missing or contradictory per-target evidence.
 > - Bound the conclusion to the checks actually performed. Automated checks and focused manual probes must not become a blanket certification claim.
+> - For a formal or model-based claim, also load and apply the [formal-claim extension](#formal-and-model-based-claims), including its native-checker, coverage and implementation-mapping requirements.
 >
 > Record each failure with: location (file:line or PR comment URL), the unsubstantiated claim verbatim, and what would have satisfied the check (e.g. "link to `phpunit` output").
 
 ## Keep evidence levels separate
+
+### Formal and model-based claims
+
+Apply this extension when the assessed material asserts a formal guarantee or
+the project explicitly requires one. An ordinary test or documentation change
+does not create that obligation.
+
+- Identify the exact property or theorem, assumptions, bounds, checker/kernel
+  version and configuration, and the actual input/target revision.
+- For a positive bounded-model claim, inspect the complete native search result,
+  an unsafe variant violating that same intended property with a trace, and
+  reachable useful success and relevant failure paths. A syntax error, timeout
+  or vacuous success does not substantiate the claim.
+- Map the abstraction to code when implementation conformance is claimed.
+  Tests and model results are separate evidence; neither becomes a refinement
+  proof by being placed in the same report.
+- A receipt validator accepting schema, hashes and recorded tool events proves
+  consistency of those records only. Its trusted outcome verifier must actually
+  execute and interpret the domain checker. An aggregate success flag cannot
+  override a false completion field, mismatched property or stale input.
+- A genuine counterexample can complete a design assessment. Report unsupported
+  assurance or incomplete coverage without inventing an implementation defect
+  or an unrequested repair/CI assignment.
+
+For requested state exploration, use the Formal Model Checking skill when it is
+available and installed; its initial package is proposed in
+[formal-model-checking PR #1](https://github.com/netresearch/formal-model-checking-skill/pull/1).
+Otherwise use the project's own verifier or record the missing capability.
+Existing command/script checkpoints can run that verifier; the LLM review
+assesses its claimed scope and semantic witnesses. Its verdict is not a
+mathematical proof or a substitute for the native checker result.
+
+For expressly required results, the consuming CI gate must reject missing,
+`skip` or `blocked` coverage as incomplete verification. Keep those statuses
+distinct from a confirmed product defect. Per-entry `require_pass` handling is
+proposed for agent-harness's `scripts/run-shipped-checkpoints.sh` in
+[agent-harness PR #112](https://github.com/netresearch/agent-harness-skill/pull/112).
+It requires that implementation to be merged and installed, or an explicitly
+selected checkout containing it. This assessment skill's `run-checkpoints.sh`
+does not consume `require_pass`; ordinary assessment semantics remain unchanged.
+The proposed harness consumer checks mechanical checkpoint results, so LLM-review
+verdicts need their own consumer and cannot stand in for native checker execution.
+Merge enforcement additionally requires the consuming CI job to be a required
+repository check.
+
+### General evidence boundaries
 
 - **Structure:** a validator accepted files, declarations or schema. This does not
   establish that a model selected a skill, ran a command or produced correct work.

@@ -141,6 +141,26 @@ for boundary in ',' '.' ';' ':' '!' '?' ' and ' ' or ' ' but ' ' because ' ' so 
     expect fail 16 "comparison denial boundary=$boundary" "$fields"$'\n'"The revisions were not compared for F2${boundary}F2 is a guess."
 done
 
+# Eval 17 must reject contradictory fields or a positive production assurance
+# appended to its correct classifications. These are bounded text regressions;
+# the semantic expectations still need an actual assessment run.
+passing=$(jq -r '.evals[] | select(.id == 17) | .samples.passing' "$EVALS")
+expect pass 17 'consistent formal evidence classification' "$passing"
+while IFS= read -r sample; do
+    expect fail 17 'formal evidence counterexample' "$(jq -r . <<<"$sample")"
+done < <(jq -c '.evals[] | select(.id == 17) | .samples.failing[]' "$EVALS")
+while IFS= read -r line; do
+    [[ "$line" =~ ^([A-Z_]+)=(.+)$ ]] || continue
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    for wrong in UNKNOWN "${value}X" "${value:0:${#value}-1}" "" " $value" "$value plus another value"; do
+        expect fail 17 "contradictory $key=$wrong" "$passing"$'\n'"$key=$wrong"
+    done
+done <<<"$passing"
+expect fail 17 'correct fields plus verified model' "$passing"$'\nMODEL=verified'
+expect fail 17 'correct fields plus proved guarantee' "$passing"$'\nThe production guarantee is proved.'
+expect pass 17 'qualified production guarantee denial' "$passing"$'\nThe production guarantee is not proved.'
+
 # These actual review counterexamples passed every assertion before the repair.
 expect fail 4 'download substituted for computed assignment' 'Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the heading font is Raleway because it downloaded successfully. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.'
 expect fail 5 'negated identity witnesses' 'DECISION=REJECT. Target c is not missing; target d is not unexpected.'
