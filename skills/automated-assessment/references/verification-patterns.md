@@ -107,6 +107,43 @@ Rubric body (loaded by the LLM checkpoint):
 
 ## Keep evidence levels separate
 
+### Formal and model-based claims
+
+Apply this extension when the assessed material asserts a formal guarantee or
+the project explicitly requires one. An ordinary test or documentation change
+does not create that obligation.
+
+- Identify the exact property or theorem, assumptions, bounds, checker/kernel
+  version and configuration, and the actual input/target revision.
+- For a positive bounded-model claim, inspect the complete native search result,
+  an unsafe variant violating that same intended property with a trace, and
+  reachable useful success and relevant failure paths. A syntax error, timeout
+  or vacuous success does not substantiate the claim.
+- Map the abstraction to code when implementation conformance is claimed.
+  Tests and model results are separate evidence; neither becomes a refinement
+  proof by being placed in the same report.
+- A receipt validator accepting schema, hashes and recorded tool events proves
+  consistency of those records only. Its trusted outcome verifier must actually
+  execute and interpret the domain checker. An aggregate success flag cannot
+  override a false completion field, mismatched property or stale input.
+- A genuine counterexample can complete a design assessment. Report unsupported
+  assurance or incomplete coverage without inventing an implementation defect
+  or an unrequested repair/CI assignment.
+
+Use the [Formal Model Checking skill](https://github.com/netresearch/formal-model-checking-skill)
+for requested state exploration. Existing command/script checkpoints can run
+the project's own verifier; the LLM review assesses its claimed scope and
+semantic witnesses. Its verdict is not a mathematical proof or a substitute
+for the native checker result.
+
+For expressly required results, the consuming CI gate must reject missing,
+`skip` or `blocked` coverage as incomplete verification. Keep those statuses
+distinct from a confirmed product defect. The harness supports this opt-in
+obligation through per-entry `require_pass` IDs; ordinary assessment semantics
+remain unchanged.
+
+### General evidence boundaries
+
 - **Structure:** a validator accepted files, declarations or schema. This does not
   establish that a model selected a skill, ran a command or produced correct work.
 - **Static review:** the reviewer followed a reachable code path and checked the

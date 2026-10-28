@@ -512,6 +512,42 @@
         ]
       },
       "expected_output": "F1=missed\nF2=later-introduced\nF3=unverified\nMISSED=1\nThe reproduction ties F1 to h1 and its reviewed scope. F2 did not exist at h1. Keep F3 attribution unverified until evidence of its presence in h1 exists."
+    },
+    {
+      "id": 17,
+      "eval_name": "formal-assurance-needs-native-semantic-evidence",
+      "prompt": "Assess this formal assurance claim only; do not change code or CI. A receipt validator reports pass, all its artifact hashes match, and outcome.passed is true. Its own checks say search_complete=false and the unsafe control ended with a parser error. The report names invariant SafeCommit, but its raw result checked a different property and has no model-to-implementation mapping. Is the production claim substantiated? Return STRUCTURE, MODEL, IMPLEMENTATION and DEFECT classifications, separating missing evidence from a demonstrated implementation defect.",
+      "expected_output": "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=not-established",
+      "assertions": [
+        {
+          "type": "content_regex",
+          "pattern": "^STRUCTURE=consistent$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^MODEL=unsubstantiated$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^IMPLEMENTATION=unverified$"
+        },
+        {
+          "type": "content_regex",
+          "pattern": "^DEFECT=not-established$"
+        }
+      ],
+      "expectations": [
+        "Distinguishes the consistency validator's trusted outcome boundary from an executed and correctly interpreted native checker result.",
+        "Rejects the incomplete search, parser-error control and mismatched property as evidence for SafeCommit without inferring an implementation bug.",
+        "Preserves review-only scope, and requires actual property/configuration/revision binding and semantic witnesses for a positive assurance claim."
+      ],
+      "samples": {
+        "passing": "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=not-established\nThe receipt is internally consistent, but the domain result is incomplete and the parser error is not an intended invariant counterexample. Inspect the native checker, intended property, configuration, revision and reachability. Keep this assessment-only; these records do not establish a production defect.",
+        "failing": [
+          "STRUCTURE=consistent\nMODEL=verified\nIMPLEMENTATION=verified\nDEFECT=none\nHashes and outcome.passed make the production claim formally proved.",
+          "STRUCTURE=consistent\nMODEL=unsubstantiated\nIMPLEMENTATION=unverified\nDEFECT=confirmed\nThe incomplete checker proves that the application is broken."
+        ]
+      }
     }
   ]
 }
