@@ -68,17 +68,21 @@ release, this skill's description names release readiness in the words the
 request uses, and the skill is still not selected. Description coverage is
 necessary and not sufficient, and what closes that gap is not known.
 
-The routing rate on that case moves with the instrument, so compare arms run
-side by side, not against an older number: none of four trials in August, 6 of 6
-once `github-release` joined the fleet, then 0 to 1 of 6 after the agent's
-working directory changed from `/instance` to `/app`.
+The benchmark's `skill_invoked` endpoint counts a call to any skill in the
+fleet, not to this skill alone, and on that case it moves with the instrument,
+so compare arms run side by side, not against an older number: none of four
+trials in August, 6 of 6 once `github-release` joined the fleet, then 0 to 1 of
+6 after the agent's working directory changed from `/instance` to `/app`.
 
 Moving the release wording from the description's tail into its opening clause
-was tested and did not help: `skill_invoked` 0 of 3 in both arms
-(`claude-haiku-4-5-20251001`), Fisher exact 1.000. The same manipulation routed
-`typo3-conformance` 6 of 6 against 1 of 6, so position is not a lever that
-transfers to this skill. The rule declared before the trials was to change the
-description only at p ≤ 0.05, so it stays as it is. Discussion in
+did not detect an improvement: `skill_invoked` 0 of 3 in both arms
+(`claude-haiku-4-5-20251001`), Fisher exact 1.000. Three trials per arm is
+suggestive, not decisive. The comparison differs from the one that worked on
+`typo3-conformance` (6 of 6 against 1 of 6): there the words were added to a
+description that lacked them, and only their position varied; here they were
+already in the tail and were moved, so the arms ask whether the front position
+is worth more than the tail. The rule declared before the trials was to change
+the description only at p ≤ 0.05, so it stays as it is. Discussion in
 [automated-assessment-skill#79](https://github.com/netresearch/automated-assessment-skill/issues/79).
 
 This repository has no instrument that measures selection: `evals/eval_queries.json`
