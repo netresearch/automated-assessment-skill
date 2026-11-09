@@ -64,12 +64,29 @@ subject.
 ## What this page does not settle
 
 The other half of the finding is open: `OFR-TYPO3-RELEASE-001` asks to prepare a
-release, this skill's description names *verifying release readiness* in the
-words the request uses, and it was invoked in none of four trials. Description
-coverage is necessary and not sufficient, and what closes that gap is not known.
-It is tracked in
-[automated-assessment-skill#79](https://github.com/netresearch/automated-assessment-skill/issues/79),
-and both halves are measurable against six-trial series that already exist.
+release, this skill's description names release readiness in the words the
+request uses, and the skill is still not selected. Description coverage is
+necessary and not sufficient, and what closes that gap is not known.
+
+The routing rate on that case moves with the instrument, so compare arms run
+side by side, not against an older number: none of four trials in August, 6 of 6
+once `github-release` joined the fleet, then 0 to 1 of 6 after the agent's
+working directory changed from `/instance` to `/app`.
+
+Moving the release wording from the description's tail into its opening clause
+was tested and did not help: `skill_invoked` 0 of 3 in both arms
+(`claude-haiku-4-5-20251001`), Fisher exact 1.000. The same manipulation routed
+`typo3-conformance` 6 of 6 against 1 of 6, so position is not a lever that
+transfers to this skill. The rule declared before the trials was to change the
+description only at p ≤ 0.05, so it stays as it is. Discussion in
+[automated-assessment-skill#79](https://github.com/netresearch/automated-assessment-skill/issues/79).
+
+This repository has no instrument that measures selection: `evals/eval_queries.json`
+is labelled data, and CI only validates its structure. A description change
+aimed at this gap is measured in `netresearch/agent-system-evals`
+(`scripts/run-comparison`) before it lands here.
 
 Evidence: `tasks/open/typo3-extension-review/RESULTS.md` and
-`tasks/open/typo3-release-prep/RESULTS.md` in `netresearch/agent-system-evals`.
+`tasks/open/typo3-release-prep/RESULTS.md` in `netresearch/agent-system-evals`;
+the position experiment is
+[agent-system-evals#111](https://github.com/netresearch/agent-system-evals/pull/111).
