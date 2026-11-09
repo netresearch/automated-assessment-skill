@@ -75,7 +75,7 @@ trials in August, 6 of 6 once `github-release` joined the fleet, then 0 to 1 of
 6 after the agent's working directory changed from `/instance` to `/app`.
 
 Moving the release wording from the description's tail into its opening clause
-did not detect an improvement: `skill_invoked` 0 of 3 in both arms
+was tested, and the trials detected no improvement: `skill_invoked` 0 of 3 in both arms
 (`claude-haiku-4-5-20251001`), Fisher exact 1.000. Three trials per arm is
 suggestive, not decisive. The comparison differs from the one that worked on
 `typo3-conformance` (6 of 6 against 1 of 6): there the words were added to a
