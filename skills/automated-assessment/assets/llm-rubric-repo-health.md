@@ -85,19 +85,16 @@ Reference specific sections using markdown anchors (e.g., `references/llm-rubric
 
 ## branding-compliance
 
-### Checkpoint: Verify Netresearch Branding
+### Checkpoint: Verify Attribution and Branding
 
-**Requirement:** Project follows Netresearch branding guidelines.
+**Requirement:** Project carries the author attribution and, where the organisation provides branding (a branding skill, a style guide or design tokens), follows it.
 
 **Checklist:**
 
-1. **Logo**: Extension icon uses Netresearch brand color `#2F99A4` as primary
+1. **Icon**: Where the organisation provides branding, the extension icon follows it
 2. **Description**: Repository description ends with `- by Netresearch`
 3. **Credits**: README credits Netresearch appropriately
-4. **Colors**: Any custom UI uses brand colors:
-   - Primary: `#2F99A4` (teal)
-   - Accent: `#FF4D00` (orange)
-   - Neutral: `#585961` (gray)
+4. **Colors**: Where the organisation provides branding, custom UI uses the colors it defines; otherwise custom UI keeps neutral defaults
 
 **Evaluation Criteria:**
 
@@ -179,8 +176,8 @@ Reference specific sections using markdown anchors (e.g., `references/llm-rubric
 **Examples:**
 - Good: `TYPO3 extension for context-based content rendering - by Netresearch`
 - Good: `AI-powered content writer for TYPO3 - by Netresearch`
-- Bad: `Contexts extension` (too vague, missing branding)
-- Bad: `TYPO3 extension for contexts` (missing branding)
+- Bad: `Contexts extension` (too vague, missing attribution)
+- Bad: `TYPO3 extension for contexts` (missing attribution)
 
 **Evaluation Criteria:**
 
