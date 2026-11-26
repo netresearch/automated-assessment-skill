@@ -162,7 +162,7 @@ expect fail 17 'correct fields plus proved guarantee' "$passing"$'\nThe producti
 expect pass 17 'qualified production guarantee denial' "$passing"$'\nThe production guarantee is not proved.'
 
 # These actual review counterexamples passed every assertion before the repair.
-expect fail 4 'download substituted for computed assignment' 'Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the heading font is Raleway because it downloaded successfully. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.'
+expect fail 4 'download substituted for computed assignment' 'Reject the completion claim:18 rows contain 17 unique targets; llm_manual_de is missing and llm_manual_en is duplicated. browser_de resolves to English, the social image returns HTML despite 200, and the heading font is Inter because it downloaded successfully. Compare the identity set with the expected manifest, obtain valid per-target witnesses and limit the statement to the checks actually performed; this does not certify full compliance.'
 expect fail 5 'negated identity witnesses' 'DECISION=REJECT. Target c is not missing; target d is not unexpected.'
 expect fail 10 'no doubt is not a certification denial' 'DECISION=ACCEPT_SCOPED. There is no doubt that these checks establish whole-page WCAG certification.'
 
