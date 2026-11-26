@@ -246,7 +246,6 @@ Add checkpoints to all other skills:
 - php-modernization
 - security-audit
 - typo3-docs
-- netresearch-branding
 
 ### Phase 4: CI Integration
 Add assessment to CI pipeline to run on every PR.

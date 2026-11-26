@@ -181,7 +181,6 @@ skill_fix_command() {
         typo3-ddev) echo "/typo3-ddev" ;;
         typo3-extension-upgrade) echo "/typo3-extension-upgrade" ;;
         php-modernization) echo "/php-modernization" ;;
-        netresearch-branding) echo "/netresearch-branding" ;;
         git-workflow) echo "/git-workflow" ;;
         docker-development) echo "/docker-development" ;;
         *) echo "/$skill_id" ;;
