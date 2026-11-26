@@ -96,6 +96,8 @@ Reference specific sections using markdown anchors (e.g., `references/llm-rubric
 3. **Credits**: README credits Netresearch appropriately
 4. **Colors**: Where the organisation provides branding, custom UI uses the colors it defines; otherwise custom UI keeps neutral defaults
 
+**Branding source:** a branding skill, style guide or design tokens that the project names in `AGENTS.md`, `README.md` or `CONTRIBUTING.md`, or that the assessment request supplies. Quote the source you used. If none is named, record items 1 and 4 as not applicable and evaluate items 2 and 3 only.
+
 **Evaluation Criteria:**
 
 | Status | Condition |
